@@ -1,0 +1,11 @@
+# python
+__pycache__/
+*.pyc
+
+# python environment
+venv
+
+# datasets
+src/data/*
+!src/data/.gitkeep
+
