@@ -25,6 +25,14 @@ Install the requirements:
 pip install -r requirements.txt
 ```
 
+Or install with command:
+```bash
+pip install deeplake==4.1.10
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
+```
+
+> ⚠️ Please be reminded that Deeplake v4 does not support Windows, please proceed with WSL if you are on Windows.
+
 ## Datasets
 
 We have used the following datasets according to the paper:
