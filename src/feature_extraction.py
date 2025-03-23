@@ -78,7 +78,6 @@ def feature_extract_resnet(pacs_dataset, batch_size=64, device=None):
 def feature_extract_decaf6(vlcs_data, batch_size=64, device=None):
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print(f'Using device: {device}')
 
     # Load pre-trained AlexNet model (closest publicly available to DeCAF)
     alexnet = models.alexnet(weights=models.AlexNet_Weights.IMAGENET1K_V1)
