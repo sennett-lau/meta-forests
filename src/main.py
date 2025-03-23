@@ -4,10 +4,10 @@ import numpy as np
 
 def main():
     # Example: Load the SUN domain VLCS data
-    vlcs_sun_loader = load_vlcs_dataset(domain='SUN', split='full')
+    vlcs_sun_dataset = load_vlcs_dataset(domain='SUN', split='full')
 
     # Checking the loader
-    for batch in vlcs_sun_loader:
+    for batch in vlcs_sun_dataset:
         images, labels = batch['images'], batch['labels']
         print(images.shape, labels.shape)
         break

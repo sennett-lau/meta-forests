@@ -56,6 +56,6 @@ def load_vlcs_dataset(domain, split='full', batch_size=64, shuffle=True):
         dataset_split=split,
         transform=transform
     )
+    
+    return dataset
 
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-    return dataloader
