@@ -26,26 +26,6 @@ def random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, random_st
     rf.fit(X_train, y_train)
     return rf
 
-def compute_mmd(X, Y, kernel='rbf', gamma=None):
-    """
-    Clearly computes the Maximum Mean Discrepancy (MMD) between two datasets X and Y.
-
-    Parameters:
-        X (np.ndarray): Samples from the first distribution (meta-train).
-        Y (np.ndarray): Samples from the second distribution (meta-test).
-        kernel (str): Kernel type (default: 'rbf').
-        gamma (float): Kernel coefficient for 'rbf'. If None, uses 1/n_features.
-
-    Returns:
-        float: MMD distance between the two distributions.
-    """
-    XX = pairwise_kernels(X, X, metric=kernel, gamma=gamma)
-    YY = pairwise_kernels(Y, Y, metric=kernel, gamma=gamma)
-    XY = pairwise_kernels(X, Y, metric=kernel, gamma=gamma)
-
-    mmd = XX.mean() + YY.mean() - 2 * XY.mean()
-    return mmd
-
 class MetaForests:
     def __init__(
             self,
@@ -87,93 +67,92 @@ class MetaForests:
         self.per_random_forest_n_estimators = per_random_forest_n_estimators
         self.per_random_forest_max_depth = per_random_forest_max_depth
         
-        # Initialize W0 as 1/(M-2) per algorithm
-        self.initial_weight = 1.0 / (len(domains) - 2)
-        
         # Store all forests and weights per iteration
         self.all_iterations_forests = []
         self.all_iterations_weights = []
+        self.all_iterations_mmds = []
+        self.init_weight = 1.0 / (len(domains) - 2)
 
+        for each_epoch in range(epochs):
+            each_forest_weights = []
+            for each_forest in range(len(domains) - 2):
+                each_forest_weights.append(self.init_weight)
+            self.all_iterations_forests.append([])
+            self.all_iterations_weights.append(each_forest_weights)
+            self.all_iterations_mmds.append([])
+            
     def train(self):
         """
         Trains the meta-forests using meta-learning according to the algorithm.
+        Please note that we are using i and j from 0, but the algorithm in the paper uses 1.
         """
+        normalized_weights = []
         randomIndex = 0
         for i in range(self.epochs):
+            normalized_weights.append([])
             random.seed(self.random_states[randomIndex])
             np.random.seed(self.random_states[randomIndex])
             
             # Randomly select 1 domain as D_meta_test
             meta_test_domain = random.choice(self.domains)
-            meta_train_domains = [d for d in self.domains if d != meta_test_domain]
-            
-            # Store forests and their weights for this iteration
-            iteration_forests = []
-            iteration_weights = []
-            
-            # Initial weights
-            if i == 0:
-                previous_weights = [self.initial_weight] * (len(self.domains) - 1)
-            else:
-                previous_weights = self.all_iterations_weights[-1]
+
+            # Randomly select num_of_train_domains domains as D_meta_train while ensuring no duplicates
+            remaining_domains = [d for d in self.domains if d != meta_test_domain]
+            num_of_train_domains = len(self.domains) - 2
+            meta_train_domains = random.sample(remaining_domains, num_of_train_domains)
             
             # For each domain j in meta_train (M-2 domains)
             for j, domain in enumerate(meta_train_domains):
                 # Train random forest model on single domain with previous weights
                 X_train, y_train = self.extracted_features[domain]
+                num_classes = len(np.unique(y_train))  # Get C (number of classes)
                 
                 rf_model = random_forest_fit(
                     X_train,
                     y_train,
                     self.per_random_forest_n_estimators,
                     self.per_random_forest_max_depth,
-                    self.random_states[randomIndex]   # Ensure different random state for each model
+                    self.random_states[randomIndex]
                 )
                 randomIndex += 1
-                # Calculate metrics for weight update
+                
+                # Calculate W_accuracy
                 X_test, y_test = self.extracted_features[meta_test_domain]
-                accuracy = rf_model.score(X_test, y_test)
-                mmd_distance = compute_mmd(X_train, X_test, kernel='rbf')
+                score = rf_model.score(X_test, y_test)
+                W_accuracy = self.compute_w_accuracy(score, num_classes)
+
+                # Calculate W_mmd
+                mmd_ij = self.compute_mmd(X_train, X_test, kernel='rbf')
+                self.all_iterations_mmds[i].append(mmd_ij)
+                W_mmd = self.compute_w_mmd(mmd_ij, i, j)
+
+                # Calculate W_ij
+                W_ij = self.compute_w_ij(i, j, W_accuracy, W_mmd)
+                self.all_iterations_weights[i][j] = W_ij
                 
                 # Store the model and metrics
                 forest_info = {
                     'model': rf_model,
                     'domain': domain,
-                    'accuracy': accuracy,
-                    'mmd_distance': mmd_distance
                 }
-                
-                iteration_forests.append(forest_info)
-                
-                # Calculate W_mmd and W_accuracy according to Eq(3)
-                # Note: Exact formula will depend on the paper's Eq(3)
-                W_mmd = mmd_distance
-                W_accuracy = accuracy
-                
-                # Weight update as per algorithm
-                updated_weight = previous_weights[j] * np.exp(self.alpha * W_mmd) * (np.log(W_accuracy + self.epsilon) ** self.beta)
-                updated_weight = max(updated_weight, self.epsilon)  # numerical stability
-                
-                iteration_weights.append(updated_weight)
-                
+
+                self.all_iterations_forests[i].append(forest_info)
+
                 print(f"Iteration {i+1}/{self.epochs} | Domain {j+1}/{len(meta_train_domains)} | "
                       f"Meta-test: {meta_test_domain}, Meta-train: {domain}, "
-                      f"Accuracy: {accuracy:.4f}, Weight: {updated_weight:.6f}")
+                      f"MMD: {mmd_ij:.4f}, W_mmd: {W_mmd:.4f}, "
+                      f"Accuracy: {W_accuracy:.4f}, Weight: {W_ij:.6f}")
             
-            # Normalize weights
-            total_weight = sum(iteration_weights)
-            normalized_weights = [w / total_weight for w in iteration_weights]
-            
-            # Store the forests and normalized weights for this iteration
-            self.all_iterations_forests.append(iteration_forests)
-            self.all_iterations_weights.append(normalized_weights)
-            
+            # Normalize weights for this iteration
+            total_weight = sum(self.all_iterations_weights[i])
+            normalized_weights[i] = [w / total_weight for w in self.all_iterations_weights[i]]
+        
         # Format the output to match algorithm's expected format
         self.meta_forests = []
         self.meta_weights_normalized = []
         
         # Store the latest iteration's models and weights
-        for forest, weight in zip(self.all_iterations_forests[-1], self.all_iterations_weights[-1]):
+        for forest, weight in zip(self.all_iterations_forests[-1], normalized_weights[-1]):
             self.meta_forests.append(forest)
             self.meta_weights_normalized.append(weight)
 
@@ -205,3 +184,47 @@ class MetaForests:
         predictions = self.predict(test_features)
         accuracy = np.mean(predictions == test_labels)
         return accuracy
+    
+    def compute_w_accuracy(self, score, num_classes):
+        accuracy_term = np.exp(score)  # This approximates e^(∑ᵢ I(yₙ=ŷₙ)/S)
+        baseline_term = np.exp(1/num_classes)
+        return max(self.epsilon, accuracy_term - baseline_term)
+
+    def compute_mmd(self, X, Y, kernel='rbf', gamma=None):
+        """
+        Clearly computes the Maximum Mean Discrepancy (MMD) between two datasets X and Y.
+
+        Parameters:
+            X (np.ndarray): Samples from the first distribution (meta-train).
+            Y (np.ndarray): Samples from the second distribution (meta-test).
+            kernel (str): Kernel type (default: 'rbf').
+            gamma (float): Kernel coefficient for 'rbf'. If None, uses 1/n_features.
+
+        Returns:
+            float: MMD distance between the two distributions.
+        """
+        XX = pairwise_kernels(X, X, metric=kernel, gamma=gamma)
+        YY = pairwise_kernels(Y, Y, metric=kernel, gamma=gamma)
+        XY = pairwise_kernels(X, Y, metric=kernel, gamma=gamma)
+
+        mmd = XX.mean() + YY.mean() - 2 * XY.mean()
+        return mmd
+    
+    def compute_w_mmd(self, mmd_ij, i, j):
+        if i == 0 or j == 0:  # Handle edge cases
+            return mmd_ij
+
+        sum_mmds = 0
+        for prev_i in range(i):
+            for prev_j in range(j):
+                sum_mmds += self.all_iterations_mmds[prev_i][prev_j]
+        # Fix: Use (i-1)*(j-1) in the denominator
+        return mmd_ij - sum_mmds / ((i) * (j))
+
+    def compute_w_ij(self, i, j, w_accuracy, w_mmd):
+        prev_i = max(0, i - 1)
+        prev_w = self.all_iterations_weights[prev_i][j]
+        mmd_factor = np.exp(self.alpha * w_mmd)
+        # Fix: Use log^(βWaccuracy) instead of log(β*Waccuracy)
+        accuracy_factor = np.power(np.log(w_accuracy + self.epsilon), self.beta)
+        return prev_w * mmd_factor * accuracy_factor
