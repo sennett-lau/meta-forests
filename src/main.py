@@ -1,114 +1,113 @@
 from load_data import load_pacs_training_dataset, load_vlcs_dataset
 from feature_extraction import feature_extract_resnet, feature_extract_decaf6
 import random
-from models import vlcs_random_forest, compute_mmd
+from models import MetaForests, random_forest_fit
 import numpy as np
+import time
+import torch
 
-def main():
+def meta_forests_on_vlcs():
+    start_time = time.time()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    print("================================================")
+    print("MetaForests for VLCS")
     vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
-    extracted_features = {}
-    
-    # Extract features clearly for each domain
-    for domain in vlcs_domains:
-        vlcs_dataset = load_vlcs_dataset(domain=domain, split='train')
-        features_array, labels_array = feature_extract_decaf6(vlcs_dataset)
-        extracted_features[domain] = (features_array, labels_array)
+    training_extracted_features = {}
+    testing_extracted_features = {}
 
-    # As baseline, train a random forest model on the VLCS dataset
-    baseline_test_domain = random.choice(vlcs_domains)
-    baseline_train_domains = [d for d in vlcs_domains if d != baseline_test_domain]
-
-    baseline_test_features, baseline_test_labels = extracted_features[baseline_test_domain]
-
-    X_baseline_train = np.vstack([extracted_features[d][0] for d in baseline_train_domains])
-    y_baseline_train = np.hstack([extracted_features[d][1] for d in baseline_train_domains])
-
-    baseline_rf_model = vlcs_random_forest(X_baseline_train, y_baseline_train)
-    baseline_accuracy = baseline_rf_model.score(baseline_test_features, baseline_test_labels)
-    print(f"Baseline accuracy on {baseline_test_domain} domain: {baseline_accuracy:.4f}")
-    
-    # Meta-learning loop: clearly iterate N times
-    N = 20  # Clearly set according to the paper recommendation
-    meta_forests = []
-
+    epochs = 20
+    random_state = 42
     alpha = -1.0
     beta = 1.0
     epsilon = 1e-6
+    random_state = 42
+    baseline_random_state = 42
+    per_random_forest_n_estimators = 100
+    per_random_forest_max_depth = 5
 
-    meta_weights = []
+    print("================================================")
+    print("Hyperparameters:")
+    print(f"Epochs: {epochs}")
+    print(f"Alpha: {alpha}")
+    print(f"Beta: {beta}")
+    print(f"Epsilon: {epsilon}")
+    print(f"Random state: {random_state}")
+    print(f"Per random forest n estimators: {per_random_forest_n_estimators}")
+    print(f"Per random forest max depth: {per_random_forest_max_depth}")
+    print("================================================")
+    print("Extracting training features for each domain...")
+    print("================================================")
+    # Extract features for each domain
+    for domain in vlcs_domains:
+        print(f"Extracting features for '{domain}' domain...")
+        vlcs_dataset = load_vlcs_dataset(domain=domain, split='train')
+        features_array, labels_array = feature_extract_decaf6(vlcs_dataset, device=device)
+        training_extracted_features[domain] = (features_array, labels_array)
+    print("================================================")
+    print("Extracting testing features for each domain...")
+    print("================================================")
+    # Extract features for each domain
+    for domain in vlcs_domains:
+        print(f"Extracting features for '{domain}' domain...")
+        vlcs_dataset = load_vlcs_dataset(domain=domain, split='test')
+        features_array, labels_array = feature_extract_decaf6(vlcs_dataset)
+        testing_extracted_features[domain] = (features_array, labels_array)
+    print("================================================")
+    print("Training MetaForests model...")
+    print("================================================")
+    # Initialize and train the MetaForests model
+    meta_forests = MetaForests(
+        domains=vlcs_domains,
+        extracted_features=training_extracted_features,
+        epochs=epochs,
+        alpha=alpha,
+        beta=beta,
+        epsilon=epsilon,
+        random_state=random_state,
+        per_random_forest_n_estimators=per_random_forest_n_estimators,
+        per_random_forest_max_depth=per_random_forest_max_depth
+    )
+    meta_forests.train()
+    print("================================================")
+    print("Configuring baseline dataset...")
+    print("================================================")
+    # Randomly select a test domain and prepare baseline model
+    random.seed(baseline_random_state)
+    baseline_test_domain = random.choice(vlcs_domains)
+    baseline_train_domains = [d for d in vlcs_domains if d != baseline_test_domain]
 
-    for iteration in range(N):
-        # Clearly select meta-test and meta-train subsets from train_domains
-        meta_test_domain = random.choice(vlcs_domains)
-        meta_train_domains = [d for d in vlcs_domains if d != meta_test_domain]
+    X_baseline_train = np.vstack([training_extracted_features[d][0] for d in baseline_train_domains])
+    y_baseline_train = np.hstack([training_extracted_features[d][1] for d in baseline_train_domains])
 
-        # Clearly prepare meta-train data
-        X_meta_train = np.vstack([extracted_features[d][0] for d in meta_train_domains])
-        y_meta_train = np.hstack([extracted_features[d][1] for d in meta_train_domains])
+    X_baseline_test, y_baseline_test = testing_extracted_features[baseline_test_domain]
 
-        # Clearly prepare meta-test data
-        X_meta_test, y_meta_test = extracted_features[meta_test_domain]
+    print("Training baseline model...")
+    print("================================================")
+    baseline_rf_model = random_forest_fit(X_baseline_train, y_baseline_train)
+    print("================================================")
+    print("Evaluating models...")
+    print("================================================")
+    baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
-        # Train random forest model clearly
-        rf_model = vlcs_random_forest(X_meta_train, y_meta_train)
-
-        # Evaluate accuracy clearly on meta-test set
-        accuracy = rf_model.score(X_meta_test, y_meta_test)
-        
-        mmd_distance = compute_mmd(X_meta_train, X_meta_test, kernel='rbf', gamma=None)
-
-        # Compute weights explicitly according to the paper
-        W_mmd = np.exp(alpha * mmd_distance)
-        W_accuracy = np.log(beta * accuracy + epsilon)
-
-        # Initial weight for the first iteration
-        if iteration == 0:
-            W_prev = 1.0
-        else:
-            W_prev = meta_weights[-1]
-
-        # Explicitly calculate new weight
-        W_current = W_prev * W_mmd * W_accuracy
-
-        # Ensure numerical stability clearly
-        W_current = max(W_current, epsilon)
-
-        meta_weights.append(W_current)
-        
-        # Clearly store model and meta information
-        meta_forests.append({
-            'model': rf_model,
-            'weight': W_current,
-            'accuracy': accuracy,
-            'mmd_distance': mmd_distance
-        })
-
-        print(f"Iteration {iteration+1}/{N} | Meta-test domain: {meta_test_domain}, Accuracy: {accuracy:.4f}")
-
-    total_weight = sum(meta_weights)
-    meta_weights_normalized = [w / total_weight for w in meta_weights]
-
-    predictions_weighted = np.zeros((baseline_test_features.shape[0], len(np.unique(y_baseline_train))))
-    # Ensemble predictions clearly
-    for model_info, normalized_weight in zip(meta_forests, meta_weights_normalized):
-        rf_model = model_info['model']
-        preds_proba = rf_model.predict_proba(baseline_test_features)
-        predictions_weighted += normalized_weight * preds_proba
-
-    # Explicitly select final predicted class (highest weighted probability)
-    final_predictions = np.argmax(predictions_weighted, axis=1)
-
-    # Clearly compute accuracy
-    meta_forests_accuracy = np.mean(final_predictions == baseline_test_labels)
-
-    print(f"Meta-Forests weighted accuracy on '{baseline_test_domain}' domain: {meta_forests_accuracy:.4f}")
+    print(f"Meta-Forests accuracy on '{baseline_test_domain}' domain: {meta_forests_accuracy:.4f}")
     print(f"Baseline accuracy on '{baseline_test_domain}' domain: {baseline_accuracy:.4f}")
-    
+    print(f"Improvement: {meta_forests_accuracy - baseline_accuracy:.4f}")
+    print("================================================")
+    print(f"Time taken: {time.time() - start_time:.2f} seconds")
+    print("================================================")
+
+def meta_forests_on_pacs():
     # Sample code for PACS dataset loading and feature extraction
     # pacs_dataset = load_pacs_training_dataset()
     # features_array, labels_array = feature_extract_resnet(pacs_dataset)
     # print(features_array.shape)
     # print(labels_array.shape)
+    pass
 
 if __name__ == "__main__":
-    main()
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    print(f"Using device: {device}")
+
+    meta_forests_on_vlcs()
