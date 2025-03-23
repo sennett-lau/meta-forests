@@ -92,40 +92,63 @@ class MetaForests:
         Trains the meta-forests using meta-learning.
         """
         meta_weights = []
+        prev_weight = 1.0
 
         for epoch in range(self.epochs):
             random.seed(self.random_states[epoch])
             np.random.seed(self.random_states[epoch])
-
+            
             meta_test_domain = self.domains[epoch % len(self.domains)]
             meta_train_domains = [d for d in self.domains if d != meta_test_domain]
-
+            
             X_meta_train = np.vstack([self.extracted_features[d][0] for d in meta_train_domains])
             y_meta_train = np.hstack([self.extracted_features[d][1] for d in meta_train_domains])
-
             X_meta_test, y_meta_test = self.extracted_features[meta_test_domain]
-
-            rf_model = random_forest_fit(X_meta_train, y_meta_train, self.per_random_forest_n_estimators, self.per_random_forest_max_depth, self.random_states[epoch])
-
+            
+            rf_model = random_forest_fit(
+                X_meta_train,
+                y_meta_train,
+                self.per_random_forest_n_estimators,
+                self.per_random_forest_max_depth,
+                self.random_states[epoch]
+            )
+            
             accuracy = rf_model.score(X_meta_test, y_meta_test)
             mmd_distance = compute_mmd(X_meta_train, X_meta_test, kernel='rbf', gamma=None)
 
-            W_mmd = np.exp(self.alpha * mmd_distance)
-            W_accuracy = np.log(self.beta * accuracy + self.epsilon)
-            W_current = max(W_mmd * W_accuracy, self.epsilon)
+            num_classes = len(np.unique(y_meta_test))
+            accuracy_raw = accuracy  # accuracy already computed via sklearn's .score()
 
+            # Correct calculation based on the paper
+            W_accuracy = np.exp(accuracy_raw) - np.exp(1.0 / num_classes)
+
+            # Calculate the mean previous MMD distances for penalization
+            if epoch > 0:
+                previous_mmd_mean = np.mean([mf['mmd_distance'] for mf in self.meta_forests])
+            else:
+                previous_mmd_mean = mmd_distance  # first iteration default to current
+
+            W_mmd = mmd_distance - previous_mmd_mean
+
+            # Correct weight update according to paper
+            update_factor = np.exp(self.alpha * W_mmd) * (np.log(W_accuracy + self.epsilon) ** self.beta)
+
+            W_current = prev_weight * update_factor
+            W_current = max(W_current, self.epsilon)  # numerical stability
+            
             meta_weights.append(W_current)
             total_weight = sum(meta_weights)
             self.meta_weights_normalized = [w / total_weight for w in meta_weights]
-
+            
             self.meta_forests.append({
                 'model': rf_model,
                 'weight': W_current,
                 'accuracy': accuracy,
                 'mmd_distance': mmd_distance
             })
+            
+            print(f"Epoch {epoch+1}/{self.epochs} | Meta-test domain: {meta_test_domain}, Accuracy: {accuracy:.4f}, Weight: {W_current:.6f}")
 
-            print(f"Epoch {epoch+1}/{self.epochs} | Meta-test domain: {meta_test_domain}, Accuracy: {accuracy:.4f}")
 
     def predict(self, test_features: np.ndarray) -> np.ndarray:
         """
