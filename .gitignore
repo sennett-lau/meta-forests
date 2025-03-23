@@ -9,3 +9,6 @@ venv
 src/data/*
 !src/data/.gitkeep
 
+# weights
+src/weights/*
+!src/weights/.gitkeep
