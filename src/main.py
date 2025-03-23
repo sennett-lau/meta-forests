@@ -18,6 +18,12 @@ def main():
     N = 20  # Clearly set according to the paper recommendation
     meta_forests = []
 
+    alpha = -1.0
+    beta = 1.0
+    epsilon = 1e-6
+
+    meta_weights = []
+
     for iteration in range(N):
         # Clearly select meta-test and meta-train subsets from train_domains
         meta_test_domain = random.choice(vlcs_domains)
@@ -37,17 +43,37 @@ def main():
         accuracy = rf_model.score(X_meta_test, y_meta_test)
         
         mmd_distance = compute_mmd(X_meta_train, X_meta_test, kernel='rbf', gamma=None)
+
+        # Compute weights explicitly according to the paper
+        W_mmd = np.exp(alpha * mmd_distance)
+        W_accuracy = np.log(beta * accuracy + epsilon)
+
+        # Initial weight for the first iteration
+        if iteration == 0:
+            W_prev = 1.0
+        else:
+            W_prev = meta_weights[-1]
+
+        # Explicitly calculate new weight
+        W_current = W_prev * W_mmd * W_accuracy
+
+        # Ensure numerical stability clearly
+        W_current = max(W_current, epsilon)
+
+        meta_weights.append(W_current)
         
         # Clearly store model and meta information
         meta_forests.append({
             'model': rf_model,
+            'weight': W_current,
             'accuracy': accuracy,
-            'mmd_distance': mmd_distance,
-            'meta_train_domains': meta_train_domains,
-            'meta_test_domain': meta_test_domain
+            'mmd_distance': mmd_distance
         })
 
         print(f"Iteration {iteration+1}/{N} | Meta-test domain: {meta_test_domain}, Accuracy: {accuracy:.4f}")
+
+    total_weight = sum(meta_weights)
+    meta_weights_normalized = [w / total_weight for w in meta_weights]
 
     
     # Sample code for PACS dataset loading and feature extraction
