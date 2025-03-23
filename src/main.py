@@ -40,7 +40,7 @@ def meta_forests_on_vlcs(
         epochs: int = 20,
         alpha: float = -1.0,
         beta: float = 1.0,
-        epsilon: float = 1e-6,
+        epsilon: float = 1e-10,
         random_state: int = 42,
         baseline_random_state: int = 52,
         per_random_forest_n_estimators: int = 100,

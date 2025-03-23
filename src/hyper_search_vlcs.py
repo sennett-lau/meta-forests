@@ -15,7 +15,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
         'epochs': [10, 30],
         'alpha': [-0.5, -2.0],
         'beta': [0.5, 2.0],
-        'epsilon': [1e-5, 1e-7],
+        'epsilon': [1e-7, 1e-10],
         'per_random_forest_n_estimators': [50, 150],
         'per_random_forest_max_depth': [3, 5, 7]
     }
