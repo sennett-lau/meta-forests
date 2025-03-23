@@ -41,10 +41,12 @@ We have used the following datasets according to the paper:
 
 While the [blood glucose monitoring dataset](https://ieeexplore.ieee.org/document/10181112) from Sun et al. (2023) used in the paper is not publicly available.
 
-### Downloading the datasets
+### Downloading the datasets and weights
 
 1. Download the VLCS dataset from the [link](http://www.mediafire.com/file/7yv132lgn1v267r/vlcs.tar.gz/file).
-2. Download the PACS dataset with the function `load_pacs_training_dataset()` in `src/load_data.py`.
+2. Decompress the file and place the `VLCS` folder in the `src/data` folder.
+3. Download the AlexNet weights from the [link](https://drive.google.com/file/d/1wUJTH1Joq2KAgrUDeKJghP1Wf7Q9w4z-/view) and place the `alexnet_caffe.pth.tar` file in the `src/weights` folder.
+4. Download the PACS dataset with the function `load_pacs_training_dataset()` in `src/load_data.py`.
 
 ## Citation
 
