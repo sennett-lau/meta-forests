@@ -5,21 +5,41 @@ from models import MetaForests, random_forest_fit
 import numpy as np
 import time
 import torch
+import os
+import pickle
 
 def vlcs_load_and_extract_features(
-    device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
+    feature_dir: str = 'src/feature_extraction',
+    force_extract: bool = False
 ):
     """
     Load and extract features for the VLCS dataset.
+    If features already exist on disk, they will be loaded instead of re-extracted.
+    
+    Args:
+        device: Device to use for feature extraction
+        feature_dir: Directory to save/load features from
+        force_extract: If True, features will be re-extracted even if they exist
     """
     print("================================================")
     print("Loading and extracting features for VLCS dataset...")
-    print("================================================")
+    
+    # Create feature directory if it doesn't exist
+    os.makedirs(feature_dir, exist_ok=True)
+    
     vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
     training_extracted_features = {}
     testing_extracted_features = {}
     
-
+    # Try to load saved features first
+    features_path = os.path.join(feature_dir, 'vlcs_features.pkl')
+    if os.path.exists(features_path) and not force_extract:
+        print(f"Loading pre-extracted features from {features_path}")
+        with open(features_path, 'rb') as f:
+            saved_data = pickle.load(f)
+            return saved_data['domains'], saved_data['training'], saved_data['testing']
+    
     # Extract features for each domain
     for domain in vlcs_domains:
         print(f"Extracting training features for '{domain}' domain...")
@@ -34,6 +54,16 @@ def vlcs_load_and_extract_features(
         features_array, labels_array = feature_extract_decaf6(vlcs_dataset, device=device)
         testing_extracted_features[domain] = (features_array, labels_array)
     
+    # Save the extracted features
+    print(f"Saving extracted features to {features_path}")
+    with open(features_path, 'wb') as f:
+        pickle.dump({
+            'domains': vlcs_domains,
+            'training': training_extracted_features,
+            'testing': testing_extracted_features
+        }, f)
+    
+    print("================================================")
     return vlcs_domains, training_extracted_features, testing_extracted_features
 
 def meta_forests_on_vlcs(

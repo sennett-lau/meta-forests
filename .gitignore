@@ -12,3 +12,7 @@ src/data/*
 # weights
 src/weights/*
 !src/weights/.gitkeep
+
+# feature extraction
+src/feature_extraction/*
+!src/feature_extraction/.gitkeep
