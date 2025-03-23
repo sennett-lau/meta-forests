@@ -1,7 +1,7 @@
 from load_data import load_pacs_training_dataset, load_vlcs_dataset
 from feature_extraction import feature_extract_resnet, feature_extract_decaf6
 import random
-from models import vlcs_random_forest
+from models import vlcs_random_forest, compute_mmd
 import numpy as np
 
 def main():
@@ -36,8 +36,7 @@ def main():
         # Evaluate accuracy clearly on meta-test set
         accuracy = rf_model.score(X_meta_test, y_meta_test)
         
-        # TODO: Compute MMD clearly here later
-        mmd_distance = 0  # placeholder for now, implement clearly next
+        mmd_distance = compute_mmd(X_meta_train, X_meta_test, kernel='rbf', gamma=None)
         
         # Clearly store model and meta information
         meta_forests.append({
