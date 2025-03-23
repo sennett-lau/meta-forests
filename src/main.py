@@ -42,7 +42,7 @@ def meta_forests_on_vlcs(
         beta: float = 1.0,
         epsilon: float = 1e-6,
         random_state: int = 42,
-        baseline_random_state: int = 42,
+        baseline_random_state: int = 52,
         per_random_forest_n_estimators: int = 100,
         per_random_forest_max_depth: int = 5,
         vlcs_domains: list[str] = None,
@@ -97,7 +97,13 @@ def meta_forests_on_vlcs(
 
     print("Training baseline model...")
     print("================================================")
-    baseline_rf_model = random_forest_fit(X_baseline_train, y_baseline_train)
+    baseline_rf_model = random_forest_fit(
+        X_baseline_train,
+        y_baseline_train, 
+        n_estimators=per_random_forest_n_estimators,
+        max_depth=per_random_forest_max_depth,
+        random_state=baseline_random_state
+    )
     print("================================================")
     print("Evaluating models...")
     print("================================================")
