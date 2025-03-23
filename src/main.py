@@ -14,6 +14,19 @@ def main():
         features_array, labels_array = feature_extract_decaf6(vlcs_dataset)
         extracted_features[domain] = (features_array, labels_array)
 
+    # As baseline, train a random forest model on the VLCS dataset
+    baseline_test_domain = random.choice(vlcs_domains)
+    baseline_train_domains = [d for d in vlcs_domains if d != baseline_test_domain]
+
+    baseline_test_features, baseline_test_labels = extracted_features[baseline_test_domain]
+
+    X_baseline_train = np.vstack([extracted_features[d][0] for d in baseline_train_domains])
+    y_baseline_train = np.hstack([extracted_features[d][1] for d in baseline_train_domains])
+
+    baseline_rf_model = vlcs_random_forest(X_baseline_train, y_baseline_train)
+    baseline_accuracy = baseline_rf_model.score(baseline_test_features, baseline_test_labels)
+    print(f"Baseline accuracy on {baseline_test_domain} domain: {baseline_accuracy:.4f}")
+    
     # Meta-learning loop: clearly iterate N times
     N = 20  # Clearly set according to the paper recommendation
     meta_forests = []
@@ -75,6 +88,21 @@ def main():
     total_weight = sum(meta_weights)
     meta_weights_normalized = [w / total_weight for w in meta_weights]
 
+    predictions_weighted = np.zeros((baseline_test_features.shape[0], len(np.unique(y_baseline_train))))
+    # Ensemble predictions clearly
+    for model_info, normalized_weight in zip(meta_forests, meta_weights_normalized):
+        rf_model = model_info['model']
+        preds_proba = rf_model.predict_proba(baseline_test_features)
+        predictions_weighted += normalized_weight * preds_proba
+
+    # Explicitly select final predicted class (highest weighted probability)
+    final_predictions = np.argmax(predictions_weighted, axis=1)
+
+    # Clearly compute accuracy
+    meta_forests_accuracy = np.mean(final_predictions == baseline_test_labels)
+
+    print(f"Meta-Forests weighted accuracy on '{baseline_test_domain}' domain: {meta_forests_accuracy:.4f}")
+    print(f"Baseline accuracy on '{baseline_test_domain}' domain: {baseline_accuracy:.4f}")
     
     # Sample code for PACS dataset loading and feature extraction
     # pacs_dataset = load_pacs_training_dataset()
