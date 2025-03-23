@@ -74,3 +74,56 @@ def feature_extract_resnet(pacs_dataset, batch_size=64, device=None):
 
     print(f'Processed {total_images} images')
     return features_array, labels_array
+
+def feature_extract_decaf6(vlcs_data, batch_size=64, device=None):
+    if device is None:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        print(f'Using device: {device}')
+
+    # Load pre-trained AlexNet model (closest publicly available to DeCAF)
+    alexnet = models.alexnet(weights=models.AlexNet_Weights.IMAGENET1K_V1)
+    decaf6 = torch.nn.Sequential(*list(alexnet.features), alexnet.avgpool)
+    decaf6.eval().to(device)
+
+    # Check if input is a DataLoader or a Dataset
+    if isinstance(vlcs_data, DataLoader):
+        dataloader = vlcs_data
+    else:
+        dataloader = DataLoader(vlcs_data, batch_size=batch_size, shuffle=False)
+
+    features_list = []
+    labels_list = []
+
+    with torch.no_grad():
+        for batch in dataloader:
+            images, labels = batch['images'].to(device), batch['labels']
+            
+            # Skip transformation if images are already tensors,
+            # but resize them to the correct size for AlexNet (227x227)
+            if isinstance(images, torch.Tensor):
+                # Resize only if needed
+                if images.shape[2] != 227 or images.shape[3] != 227:
+                    resizer = transforms.Resize((227, 227))
+                    images = resizer(images)
+            else:
+                # For PIL images or numpy arrays, apply full transform
+                transform = transforms.Compose([
+                    transforms.Resize((227, 227)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+                ])
+                images = transform(images)
+
+            # Extract features
+            features = decaf6(images).view(images.size(0), -1)
+            features_list.append(features.cpu().numpy())
+            labels_list.append(labels.cpu().numpy())
+
+    # Concatenate all features and labels
+    if features_list:
+        features_array = np.concatenate(features_list, axis=0)
+        labels_array = np.concatenate(labels_list, axis=0)
+        return features_array, labels_array
+    else:
+        print("No data processed - features_list is empty")
+        return np.array([]), np.array([])
