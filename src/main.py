@@ -6,6 +6,36 @@ import numpy as np
 import time
 import torch
 
+def vlcs_load_and_extract_features(
+    device: str = 'cuda' if torch.cuda.is_available() else 'cpu'
+):
+    """
+    Load and extract features for the VLCS dataset.
+    """
+    print("================================================")
+    print("Loading and extracting features for VLCS dataset...")
+    print("================================================")
+    vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
+    training_extracted_features = {}
+    testing_extracted_features = {}
+    
+
+    # Extract features for each domain
+    for domain in vlcs_domains:
+        print(f"Extracting training features for '{domain}' domain...")
+        vlcs_dataset = load_vlcs_dataset(domain=domain, split='train')
+        features_array, labels_array = feature_extract_decaf6(vlcs_dataset, device=device)
+        training_extracted_features[domain] = (features_array, labels_array)
+    
+    # Extract features for each domain
+    for domain in vlcs_domains:
+        print(f"Extracting testing features for '{domain}' domain...")
+        vlcs_dataset = load_vlcs_dataset(domain=domain, split='test')
+        features_array, labels_array = feature_extract_decaf6(vlcs_dataset, device=device)
+        testing_extracted_features[domain] = (features_array, labels_array)
+    
+    return vlcs_domains, training_extracted_features, testing_extracted_features
+
 def meta_forests_on_vlcs(
         epochs: int = 20,
         alpha: float = -1.0,
@@ -14,15 +44,18 @@ def meta_forests_on_vlcs(
         random_state: int = 42,
         baseline_random_state: int = 42,
         per_random_forest_n_estimators: int = 100,
-        per_random_forest_max_depth: int = 5
+        per_random_forest_max_depth: int = 5,
+        vlcs_domains: list[str] = None,
+        training_extracted_features: dict = None,
+        testing_extracted_features: dict = None
     ):
     start_time = time.time()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("================================================")
     print("MetaForests for VLCS")
-    vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
-    training_extracted_features = {}
-    testing_extracted_features = {}
+
+    if vlcs_domains is None or training_extracted_features is None or testing_extracted_features is None:
+        vlcs_domains, training_extracted_features, testing_extracted_features = vlcs_load_and_extract_features(device=device)
 
     print("================================================")
     print("Hyperparameters:")
@@ -33,24 +66,6 @@ def meta_forests_on_vlcs(
     print(f"Random state: {random_state}")
     print(f"Per random forest n estimators: {per_random_forest_n_estimators}")
     print(f"Per random forest max depth: {per_random_forest_max_depth}")
-    print("================================================")
-    print("Extracting training features for each domain...")
-    print("================================================")
-    # Extract features for each domain
-    for domain in vlcs_domains:
-        print(f"Extracting features for '{domain}' domain...")
-        vlcs_dataset = load_vlcs_dataset(domain=domain, split='train')
-        features_array, labels_array = feature_extract_decaf6(vlcs_dataset, device=device)
-        training_extracted_features[domain] = (features_array, labels_array)
-    print("================================================")
-    print("Extracting testing features for each domain...")
-    print("================================================")
-    # Extract features for each domain
-    for domain in vlcs_domains:
-        print(f"Extracting features for '{domain}' domain...")
-        vlcs_dataset = load_vlcs_dataset(domain=domain, split='test')
-        features_array, labels_array = feature_extract_decaf6(vlcs_dataset)
-        testing_extracted_features[domain] = (features_array, labels_array)
     print("================================================")
     print("Training MetaForests model...")
     print("================================================")
