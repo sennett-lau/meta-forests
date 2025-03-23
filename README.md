@@ -27,7 +27,7 @@ pip install -r requirements.txt
 
 Or install with command:
 ```bash
-pip install deeplake==4.1.10
+pip install deeplake==4.1.10 scikit-learn==1.6.1 numpy==2.2.4
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 ```
 
