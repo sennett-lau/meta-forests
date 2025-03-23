@@ -86,7 +86,7 @@ class MetaForests:
         self.random_states = [random.randint(0, 1000000) for _ in range(self.epochs)]
         self.per_random_forest_n_estimators = per_random_forest_n_estimators
         self.per_random_forest_max_depth = per_random_forest_max_depth
-        
+
     def train(self):
         """
         Trains the meta-forests using meta-learning.
@@ -97,7 +97,7 @@ class MetaForests:
             random.seed(self.random_states[epoch])
             np.random.seed(self.random_states[epoch])
 
-            meta_test_domain = random.choice(self.domains)
+            meta_test_domain = self.domains[epoch % len(self.domains)]
             meta_train_domains = [d for d in self.domains if d != meta_test_domain]
 
             X_meta_train = np.vstack([self.extracted_features[d][0] for d in meta_train_domains])
@@ -105,18 +105,18 @@ class MetaForests:
 
             X_meta_test, y_meta_test = self.extracted_features[meta_test_domain]
 
-            rf_model = random_forest_fit(X_meta_train, y_meta_train, self.per_random_forest_n_estimators, self.per_random_forest_max_depth)
+            rf_model = random_forest_fit(X_meta_train, y_meta_train, self.per_random_forest_n_estimators, self.per_random_forest_max_depth, self.random_states[epoch])
 
             accuracy = rf_model.score(X_meta_test, y_meta_test)
             mmd_distance = compute_mmd(X_meta_train, X_meta_test, kernel='rbf', gamma=None)
 
             W_mmd = np.exp(self.alpha * mmd_distance)
             W_accuracy = np.log(self.beta * accuracy + self.epsilon)
-
-            W_prev = meta_weights[-1] if epoch > 0 else 1.0
-            W_current = max(W_prev * W_mmd * W_accuracy, self.epsilon)
+            W_current = max(W_mmd * W_accuracy, self.epsilon)
 
             meta_weights.append(W_current)
+            total_weight = sum(meta_weights)
+            self.meta_weights_normalized = [w / total_weight for w in meta_weights]
 
             self.meta_forests.append({
                 'model': rf_model,
@@ -126,9 +126,6 @@ class MetaForests:
             })
 
             print(f"Epoch {epoch+1}/{self.epochs} | Meta-test domain: {meta_test_domain}, Accuracy: {accuracy:.4f}")
-
-        total_weight = sum(meta_weights)
-        self.meta_weights_normalized = [w / total_weight for w in meta_weights]
 
     def predict(self, test_features: np.ndarray) -> np.ndarray:
         """
