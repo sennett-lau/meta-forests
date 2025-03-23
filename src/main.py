@@ -7,33 +7,48 @@ import numpy as np
 def main():
     vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
     extracted_features = {}
+    
+    # Extract features clearly for each domain
     for domain in vlcs_domains:
         vlcs_dataset = load_vlcs_dataset(domain=domain, split='train')
         features_array, labels_array = feature_extract_decaf6(vlcs_dataset)
         extracted_features[domain] = (features_array, labels_array)
 
-    # randomly select a domain
-    test_domain = random.choice(vlcs_domains)
-    train_domains = [domain for domain in vlcs_domains if domain != test_domain]
+    # Meta-learning loop: clearly iterate N times
+    N = 20  # Clearly set according to the paper recommendation
+    meta_forests = []
 
-    # Concatenate training domain features and labels clearly
-    X_train = np.vstack([extracted_features[domain][0] for domain in train_domains])
-    y_train = np.hstack([extracted_features[domain][1] for domain in train_domains])
+    for iteration in range(N):
+        # Clearly select meta-test and meta-train subsets from train_domains
+        meta_test_domain = random.choice(vlcs_domains)
+        meta_train_domains = [d for d in vlcs_domains if d != meta_test_domain]
 
-    # Clearly separate test domain features and labels
-    X_test, y_test = extracted_features[test_domain]
+        # Clearly prepare meta-train data
+        X_meta_train = np.vstack([extracted_features[d][0] for d in meta_train_domains])
+        y_meta_train = np.hstack([extracted_features[d][1] for d in meta_train_domains])
 
-    # Quick check on data shapes
-    print(f"Selected test domain: {test_domain}")
-    print(f"Training data shape: {X_train.shape}, Training labels shape: {y_train.shape}")
-    print(f"Test data shape: {X_test.shape}, Test labels shape: {y_test.shape}")
+        # Clearly prepare meta-test data
+        X_meta_test, y_meta_test = extracted_features[meta_test_domain]
 
-    # Train random forest model on VLCS dataset clearly
-    rf_model = vlcs_random_forest(X_train, y_train)
+        # Train random forest model clearly
+        rf_model = vlcs_random_forest(X_meta_train, y_meta_train)
 
-    # Evaluate clearly on test data
-    test_accuracy = rf_model.score(X_test, y_test)
-    print(f"Test accuracy on '{test_domain}' domain: {test_accuracy:.4f}")
+        # Evaluate accuracy clearly on meta-test set
+        accuracy = rf_model.score(X_meta_test, y_meta_test)
+        
+        # TODO: Compute MMD clearly here later
+        mmd_distance = 0  # placeholder for now, implement clearly next
+        
+        # Clearly store model and meta information
+        meta_forests.append({
+            'model': rf_model,
+            'accuracy': accuracy,
+            'mmd_distance': mmd_distance,
+            'meta_train_domains': meta_train_domains,
+            'meta_test_domain': meta_test_domain
+        })
+
+        print(f"Iteration {iteration+1}/{N} | Meta-test domain: {meta_test_domain}, Accuracy: {accuracy:.4f}")
 
     
     # Sample code for PACS dataset loading and feature extraction
