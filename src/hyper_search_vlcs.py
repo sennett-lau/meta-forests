@@ -12,11 +12,11 @@ def meta_forests_hyperparameter_search_on_vlcs():
     """
     # Define hyperparameter grid
     param_grid = {
-        'epochs': [10, 20, 30],
-        'alpha': [-0.5, -1.0, -2.0],
-        'beta': [0.5, 1.0, 2.0],
-        'epsilon': [1e-5, 1e-6, 1e-7],
-        'per_random_forest_n_estimators': [50, 100, 150],
+        'epochs': [10, 30],
+        'alpha': [-0.5, -2.0],
+        'beta': [0.5, 2.0],
+        'epsilon': [1e-5, 1e-7],
+        'per_random_forest_n_estimators': [50, 150],
         'per_random_forest_max_depth': [3, 5, 7]
     }
     
