@@ -6,7 +6,16 @@ import numpy as np
 import time
 import torch
 
-def meta_forests_on_vlcs():
+def meta_forests_on_vlcs(
+        epochs: int = 20,
+        alpha: float = -1.0,
+        beta: float = 1.0,
+        epsilon: float = 1e-6,
+        random_state: int = 42,
+        baseline_random_state: int = 42,
+        per_random_forest_n_estimators: int = 100,
+        per_random_forest_max_depth: int = 5
+    ):
     start_time = time.time()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print("================================================")
@@ -14,16 +23,6 @@ def meta_forests_on_vlcs():
     vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
     training_extracted_features = {}
     testing_extracted_features = {}
-
-    epochs = 20
-    random_state = 42
-    alpha = -1.0
-    beta = 1.0
-    epsilon = 1e-6
-    random_state = 42
-    baseline_random_state = 42
-    per_random_forest_n_estimators = 100
-    per_random_forest_max_depth = 5
 
     print("================================================")
     print("Hyperparameters:")
@@ -92,10 +91,13 @@ def meta_forests_on_vlcs():
 
     print(f"Meta-Forests accuracy on '{baseline_test_domain}' domain: {meta_forests_accuracy:.4f}")
     print(f"Baseline accuracy on '{baseline_test_domain}' domain: {baseline_accuracy:.4f}")
-    print(f"Improvement: {meta_forests_accuracy - baseline_accuracy:.4f}")
+    improvement = meta_forests_accuracy - baseline_accuracy
+    print(f"Improvement: {improvement:.4f}")
     print("================================================")
     print(f"Time taken: {time.time() - start_time:.2f} seconds")
     print("================================================")
+
+    return meta_forests_accuracy, baseline_accuracy, improvement
 
 def meta_forests_on_pacs():
     # Sample code for PACS dataset loading and feature extraction
