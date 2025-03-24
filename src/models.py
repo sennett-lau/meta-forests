@@ -1,9 +1,12 @@
 import numpy as np
 import random
 from sklearn.metrics.pairwise import pairwise_kernels
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.utils import resample
 
-def random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, random_state=None):
+
+def baseline_random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, random_state=None):
     """
     Trains a Random Forest model on VLCS dataset features clearly.
 
@@ -25,6 +28,76 @@ def random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, random_st
 
     rf.fit(X_train, y_train)
     return rf
+
+
+class RandomForest:
+    def __init__(
+        self,
+        n_estimators=10,
+        feature_subsample_ratio=0.5,
+        random_state=None,
+        max_depth=None
+    ):
+        self.n_estimators = n_estimators
+        self.feature_subsample_ratio = feature_subsample_ratio
+        self.random_state = np.random.RandomState(random_state)
+        self.trees = []
+        self.features_used = []
+        self.max_depth = max_depth
+
+    def fit(self, X, y):
+        n_samples, n_features = X.shape
+        available_features = set(range(n_features))
+        feature_mask = set()
+
+        for i in range(self.n_estimators):
+            # Reset feature mask if not enough features remain
+            if len(available_features - feature_mask) < int(n_features * self.feature_subsample_ratio):
+                feature_mask.clear()
+
+            selectable_features = list(available_features - feature_mask)
+            n_select = min(int(n_features * self.feature_subsample_ratio), len(selectable_features))
+            selected_features = self.random_state.choice(selectable_features, n_select, replace=False)
+            
+            feature_mask.update(selected_features)
+            self.features_used.append(selected_features)
+
+            # Bootstrap sample
+            indices = resample(range(n_samples), replace=True, random_state=self.random_state)
+            X_bootstrap = X[indices][:, selected_features]
+            y_bootstrap = y[indices]
+
+            # Train the tree on selected features, **with a max_depth**
+            tree = DecisionTreeClassifier(
+                random_state=self.random_state,
+                max_depth=self.max_depth
+            )
+            tree.fit(X_bootstrap, y_bootstrap)
+            self.trees.append(tree)
+
+    def predict(self, X):
+        # Aggregate predictions
+        predictions = []
+        for i, (tree, features) in enumerate(zip(self.trees, self.features_used)):
+            tree_pred = tree.predict(X[:, features])
+            predictions.append(tree_pred)
+        predictions = np.array(predictions)
+        
+        # Majority voting
+        final_preds = np.apply_along_axis(lambda x: np.bincount(x).argmax(), axis=0, arr=predictions)
+        return final_preds
+    
+    def predict_proba(self, X):
+        predictions = []
+        for tree, features in zip(self.trees, self.features_used):
+            tree_pred_proba = tree.predict_proba(X[:, features])
+            predictions.append(tree_pred_proba)
+        predictions = np.array(predictions)
+        return np.average(predictions, axis=0)
+    
+    def score(self, X, y):
+        return np.mean(self.predict(X) == y)
+
 
 class MetaForests:
     def __init__(
@@ -106,14 +179,15 @@ class MetaForests:
                 # Train random forest model on single domain with previous weights
                 X_train, y_train = self.extracted_features[domain]
                 num_classes = len(np.unique(y_train))  # Get C (number of classes)
+                num_features = X_train.shape[1]
                 
-                rf_model = random_forest_fit(
-                    X_train,
-                    y_train,
-                    self.per_random_forest_n_estimators,
-                    self.per_random_forest_max_depth,
-                    self.random_states[randomIndex]
+                rf_model = RandomForest(
+                    n_estimators=self.per_random_forest_n_estimators,
+                    feature_subsample_ratio=np.sqrt(num_features),
+                    max_depth=self.per_random_forest_max_depth,
+                    random_state=self.random_states[randomIndex]
                 )
+                rf_model.fit(X_train, y_train)
                 randomIndex += 1
                 
                 # Calculate W_accuracy

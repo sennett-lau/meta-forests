@@ -1,7 +1,7 @@
 from load_data import load_pacs_training_dataset, load_vlcs_dataset
 from feature_extraction import feature_extract_resnet, feature_extract_decaf6
 import random
-from models import MetaForests, random_forest_fit
+from models import MetaForests, RandomForest, baseline_random_forest_fit
 import numpy as np
 import time
 import torch
@@ -67,14 +67,14 @@ def vlcs_load_and_extract_features(
     return vlcs_domains, training_extracted_features, testing_extracted_features
 
 def meta_forests_on_vlcs(
-        epochs: int = 20,
+        epochs: int = 10,
         alpha: float = -1.0,
         beta: float = 1.0,
         epsilon: float = 1e-10,
         random_state: int = 42,
         baseline_random_state: int = 52,
-        per_random_forest_n_estimators: int = 100,
-        per_random_forest_max_depth: int = 5,
+        per_random_forest_n_estimators: int = 20,
+        per_random_forest_max_depth: int = 10,
         vlcs_domains: list[str] = None,
         training_extracted_features: dict = None,
         testing_extracted_features: dict = None
@@ -127,7 +127,7 @@ def meta_forests_on_vlcs(
 
     print("Training baseline model...")
     print("================================================")
-    baseline_rf_model = random_forest_fit(
+    baseline_rf_model = baseline_random_forest_fit(
         X_baseline_train,
         y_baseline_train, 
         n_estimators=per_random_forest_n_estimators,
