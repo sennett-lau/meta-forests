@@ -118,6 +118,7 @@ class MetaForests:
 
         Parameters:
         - domains (list): List of domain names.
+        - target_domain (str): Name of target domain.
         - extracted_features (dict): Dictionary containing features and labels for each domain. Each value is a tuple (features_array, labels_array).
         - epochs (int): Number of meta-learning iterations.
         - alpha (float): Parameter controlling the impact of MMD on weight updates.
@@ -177,9 +178,12 @@ class MetaForests:
             # For each domain j in meta_train (M-2 domains)
             for j, domain in enumerate(meta_train_domains):
                 # Train random forest model on single domain with previous weights
+                # Fix: only 1/5 of the data should be used for meta-train, meta-test
                 X_train, y_train = self.extracted_features[domain]
-                #one_fifth_samples = np.random.choice(len(X_train), len(X_train) // 5, replace=False)
-                #X_train, y_train = X_train[one_fifth_samples], y_train[one_fifth_samples]
+                # Error!
+                # one_fifth_samples = np.random.choice(len(X_train), len(X_train) // 5, replace=False)
+                # X_train, y_train = X_train[one_fifth_samples], y_train[one_fifth_samples]
+
                 num_classes = len(np.unique(y_train))  # Get C (number of classes)
                 num_features = X_train.shape[1]
                 
@@ -195,9 +199,12 @@ class MetaForests:
                 np.random.seed(self.random_states[randomIndex])
 
                 # Calculate W_accuracy
+                # Fix: only 1/5 of the data should be used for meta-train, meta-test
                 X_test, y_test = self.extracted_features[meta_test_domain]
-                #one_fifth_samples = np.random.choice(len(X_test), len(X_test) // 5, replace=False)
-                #X_test, y_test = X_test[one_fifth_samples], y_test[one_fifth_samples]
+                # Error!
+                # one_fifth_samples = np.random.choice(len(X_test), len(X_test) // 5, replace=False)
+                # X_test, y_test = X_test[one_fifth_samples], y_test[one_fifth_samples]
+                
                 score = rf_model.score(X_test, y_test)
                 W_accuracy = self.compute_w_accuracy(score, num_classes)
 
@@ -231,11 +238,11 @@ class MetaForests:
         self.meta_forests = []
         self.meta_weights_normalized = []
         
-        # Store the latest iteration's models and weights
+        # Store ALL iterations' models and weights
         self.all_iterations_forests = [forest_info for forest_iteration in self.all_iterations_forests for forest_info in forest_iteration]
         normalized_weights = [w for ww in normalized_weights for w in ww]
+        
         for forest, weight in zip(self.all_iterations_forests, normalized_weights):
-        # for forest, weight in zip(self.all_iterations_forests[-1], normalized_weights[-1]):
             self.meta_forests.append(forest)
             self.meta_weights_normalized.append(weight)
 
