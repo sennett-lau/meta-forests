@@ -28,7 +28,7 @@ def vlcs_load_and_extract_features(
     # Create feature directory if it doesn't exist
     os.makedirs(feature_dir, exist_ok=True)
     
-    vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
+    vlcs_domains = ['PASCAL', 'CALTECH', 'LABELME', 'SUN']
     training_extracted_features = {}
     testing_extracted_features = {}
     
@@ -85,7 +85,7 @@ def pacs_load_and_extract_features(
     
     # Create feature directory if it doesn't exist
     os.makedirs(feature_dir, exist_ok=True)
-    #Photo (1,670 images), Art Painting (2,048 images), Cartoon (2,344 images), and Sketch
+
     pacs_domains = ['PHOTO', 'ART_PAINTING', 'CARTOON', 'SKETCH']
     training_extracted_features = {}
     testing_extracted_features = {}
