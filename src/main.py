@@ -325,8 +325,8 @@ if __name__ == "__main__":
         
     for domain in pacs_domains:
         meta_forests_on_pacs(
-            vlcs_domains=pacs_domains,
-            vlcs_target_domain=domain,
+            pacs_domains=pacs_domains,
+            pacs_target_domain=domain,
             training_extracted_features=pacs_training_extracted_features,
             testing_extracted_features=pacs_testing_extracted_features
         )
