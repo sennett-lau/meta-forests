@@ -1,5 +1,3 @@
-
-
 import deeplake
 import os
 import torch
@@ -10,6 +8,10 @@ from torch.utils.data import Dataset, DataLoader
 
 def load_pacs_training_dataset():
   ds = deeplake.query('SELECT * FROM "hub://activeloop/pacs-train"')
+  return ds.pytorch()
+
+def load_pacs_testing_dataset():
+  ds = deeplake.query('SELECT * FROM "hub://activeloop/pacs-test"')
   return ds.pytorch()
 
 class VLCSImageDataset(Dataset):

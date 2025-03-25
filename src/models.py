@@ -281,7 +281,7 @@ class MetaForests:
         YY = pairwise_kernels(Y, Y, metric=kernel, gamma=gamma)
         XY = pairwise_kernels(X, Y, metric=kernel, gamma=gamma)
 
-        mmd = XX.mean() + YY.mean() - 2 * XY.mean()
+        mmd = np.sqrt(XX.mean() + YY.mean() - 2 * XY.mean())
         return mmd
     
     def compute_w_mmd(self, mmd_ij, i, j):
