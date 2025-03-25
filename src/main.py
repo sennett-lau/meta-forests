@@ -28,7 +28,7 @@ def vlcs_load_and_extract_features(
     # Create feature directory if it doesn't exist
     os.makedirs(feature_dir, exist_ok=True)
     
-    vlcs_domains = ['CALTECH', 'LABELME', 'PASCAL', 'SUN']
+    vlcs_domains = ['PASCAL', 'CALTECH', 'LABELME', 'SUN']
     training_extracted_features = {}
     testing_extracted_features = {}
     
@@ -85,7 +85,7 @@ def pacs_load_and_extract_features(
     
     # Create feature directory if it doesn't exist
     os.makedirs(feature_dir, exist_ok=True)
-    #Photo (1,670 images), Art Painting (2,048 images), Cartoon (2,344 images), and Sketch
+
     pacs_domains = ['PHOTO', 'ART_PAINTING', 'CARTOON', 'SKETCH']
     training_extracted_features = {}
     testing_extracted_features = {}
@@ -128,14 +128,15 @@ def pacs_load_and_extract_features(
 
 def meta_forests_on_vlcs(
         epochs: int = 10,
-        alpha: float = -1.0,
-        beta: float = 1.0,
+        alpha: float = -0.5,
+        beta: float = 0.5,
         epsilon: float = 1e-10,
         random_state: int = 42,
         baseline_random_state: int = 52,
         per_random_forest_n_estimators: int = 100,
         per_random_forest_max_depth: int = 5,
         vlcs_domains: list[str] = None,
+        vlcs_target_domain: str = None,
         training_extracted_features: dict = None,
         testing_extracted_features: dict = None
     ):
@@ -146,6 +147,11 @@ def meta_forests_on_vlcs(
 
     if vlcs_domains is None or training_extracted_features is None or testing_extracted_features is None:
         vlcs_domains, training_extracted_features, testing_extracted_features = vlcs_load_and_extract_features(device=device)
+    
+    if vlcs_target_domain is None:
+        vlcs_target_domain = vlcs_domains[0]
+    
+    vlcs_source_domains = [d for d in vlcs_domains if d != vlcs_target_domain]
 
     print("================================================")
     print("Hyperparameters:")
@@ -162,6 +168,7 @@ def meta_forests_on_vlcs(
     # Initialize and train the MetaForests model
     meta_forests = MetaForests(
         domains=vlcs_domains,
+        target_domain=vlcs_target_domain,
         extracted_features=training_extracted_features,
         epochs=epochs,
         alpha=alpha,
@@ -175,15 +182,11 @@ def meta_forests_on_vlcs(
     print("================================================")
     print("Configuring baseline dataset...")
     print("================================================")
-    # Randomly select a test domain and prepare baseline model
-    random.seed(baseline_random_state)
-    baseline_test_domain = random.choice(vlcs_domains)
-    baseline_train_domains = [d for d in vlcs_domains if d != baseline_test_domain]
 
-    X_baseline_train = np.vstack([training_extracted_features[d][0] for d in baseline_train_domains])
-    y_baseline_train = np.hstack([training_extracted_features[d][1] for d in baseline_train_domains])
+    X_baseline_train = np.vstack([training_extracted_features[d][0] for d in vlcs_source_domains])
+    y_baseline_train = np.hstack([training_extracted_features[d][1] for d in vlcs_source_domains])
 
-    X_baseline_test, y_baseline_test = testing_extracted_features[baseline_test_domain]
+    X_baseline_test, y_baseline_test = training_extracted_features[vlcs_target_domain]
 
     print("Training baseline model...")
     print("================================================")
@@ -200,8 +203,8 @@ def meta_forests_on_vlcs(
     baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
-    print(f"Meta-Forests accuracy on '{baseline_test_domain}' domain: {meta_forests_accuracy:.4f}")
-    print(f"Baseline accuracy on '{baseline_test_domain}' domain: {baseline_accuracy:.4f}")
+    print(f"Meta-Forests accuracy on '{vlcs_target_domain}' domain: {meta_forests_accuracy:.4f}")
+    print(f"Baseline accuracy on '{vlcs_target_domain}' domain: {baseline_accuracy:.4f}")
     improvement = meta_forests_accuracy - baseline_accuracy
     print(f"Improvement: {improvement:.4f}")
     print("================================================")
@@ -212,14 +215,15 @@ def meta_forests_on_vlcs(
 
 def meta_forests_on_pacs(
         epochs: int = 10,
-        alpha: float = -1.0,
-        beta: float = 1.0,
+        alpha: float = -0.5,
+        beta: float = 0.5,
         epsilon: float = 1e-10,
         random_state: int = 42,
         baseline_random_state: int = 52,
         per_random_forest_n_estimators: int = 100,
         per_random_forest_max_depth: int = 5,
         pacs_domains: list[str] = None,
+        pacs_target_domain: str = None,
         training_extracted_features: dict = None,
         testing_extracted_features: dict = None
     ):
@@ -237,6 +241,12 @@ def meta_forests_on_pacs(
     if pacs_domains is None or training_extracted_features is None or testing_extracted_features is None:
         pacs_domains, training_extracted_features, testing_extracted_features = pacs_load_and_extract_features(device=device)
 
+    if pacs_target_domain is None:
+        pacs_target_domain = pacs_domains[0]
+    
+    pacs_source_domains = [d for d in pacs_domains if d != pacs_target_domain]
+
+
     print("================================================")
     print("Hyperparameters:")
     print(f"Epochs: {epochs}")
@@ -252,6 +262,7 @@ def meta_forests_on_pacs(
     # Initialize and train the MetaForests model
     meta_forests = MetaForests(
         domains=pacs_domains,
+        target_domain=pacs_target_domain,
         extracted_features=training_extracted_features,
         epochs=epochs,
         alpha=alpha,
@@ -265,15 +276,11 @@ def meta_forests_on_pacs(
     print("================================================")
     print("Configuring baseline dataset...")
     print("================================================")
-    # Randomly select a test domain and prepare baseline model
-    random.seed(baseline_random_state)
-    baseline_test_domain = random.choice(pacs_domains)
-    baseline_train_domains = [d for d in pacs_domains if d != baseline_test_domain]
 
-    X_baseline_train = np.vstack([training_extracted_features[d][0] for d in baseline_train_domains])
-    y_baseline_train = np.hstack([training_extracted_features[d][1] for d in baseline_train_domains])
+    X_baseline_train = np.vstack([training_extracted_features[d][0] for d in pacs_source_domains])
+    y_baseline_train = np.hstack([training_extracted_features[d][1] for d in pacs_source_domains])
 
-    X_baseline_test, y_baseline_test = testing_extracted_features[baseline_test_domain]
+    X_baseline_test, y_baseline_test = testing_extracted_features[pacs_target_domain]
 
     print("Training baseline model...")
     print("================================================")
@@ -290,8 +297,8 @@ def meta_forests_on_pacs(
     baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
-    print(f"Meta-Forests accuracy on '{baseline_test_domain}' domain: {meta_forests_accuracy:.4f}")
-    print(f"Baseline accuracy on '{baseline_test_domain}' domain: {baseline_accuracy:.4f}")
+    print(f"Meta-Forests accuracy on '{pacs_target_domain}' domain: {meta_forests_accuracy:.4f}")
+    print(f"Baseline accuracy on '{pacs_target_domain}' domain: {baseline_accuracy:.4f}")
     improvement = meta_forests_accuracy - baseline_accuracy
     print(f"Improvement: {improvement:.4f}")
     print("================================================")
@@ -305,5 +312,21 @@ if __name__ == "__main__":
 
     print(f"Using device: {device}")
 
-    meta_forests_on_vlcs()
-    meta_forests_on_pacs()
+    vlcs_domains, vlcs_training_extracted_features, vlcs_testing_extracted_features = vlcs_load_and_extract_features(device=device)
+    pacs_domains, pacs_training_extracted_features, pacs_testing_extracted_features = pacs_load_and_extract_features(device=device)
+    
+    for domain in vlcs_domains:
+        meta_forests_on_vlcs(
+            vlcs_domains=vlcs_domains,
+            vlcs_target_domain=domain,
+            training_extracted_features=vlcs_training_extracted_features,
+            testing_extracted_features=vlcs_testing_extracted_features
+        )
+        
+    for domain in pacs_domains:
+        meta_forests_on_pacs(
+            vlcs_domains=pacs_domains,
+            vlcs_target_domain=domain,
+            training_extracted_features=pacs_training_extracted_features,
+            testing_extracted_features=pacs_testing_extracted_features
+        )

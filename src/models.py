@@ -103,8 +103,9 @@ class MetaForests:
     def __init__(
             self,
             domains: list,
+            target_domain: str,
             extracted_features: dict,
-            epochs: int = 20,
+            epochs: int = 10,
             alpha: float = -1.0,
             beta: float = 1.0,
             epsilon: float = 1e-10,
@@ -127,6 +128,8 @@ class MetaForests:
         - per_random_forest_max_depth (int): Max depth of trees in each random forest.
         """
         self.domains = domains
+        self.target_domain = target_domain
+        self.source_domains = [d for d in self.domains if d != self.target_domain]
         self.extracted_features = extracted_features
         self.epochs = epochs
         self.alpha = alpha
@@ -161,37 +164,40 @@ class MetaForests:
         """
         normalized_weights = []
         randomIndex = 0
+        random.seed(self.random_states[randomIndex])
+        np.random.seed(self.random_states[randomIndex])
+
         for i in range(self.epochs):
             normalized_weights.append([])
-            random.seed(self.random_states[randomIndex])
-            np.random.seed(self.random_states[randomIndex])
             
-            # Randomly select 1 domain as D_meta_test
-            meta_test_domain = random.choice(self.domains)
-
-            # Randomly select num_of_train_domains domains as D_meta_train while ensuring no duplicates
-            remaining_domains = [d for d in self.domains if d != meta_test_domain]
-            num_of_train_domains = len(self.domains) - 2
-            meta_train_domains = random.sample(remaining_domains, num_of_train_domains)
+            # Randomly select 1 domain as D_meta_test; the other domains become D_meta_train
+            meta_test_domain = random.choice(self.source_domains)
+            meta_train_domains = [d for d in self.source_domains if d != meta_test_domain]
             
             # For each domain j in meta_train (M-2 domains)
             for j, domain in enumerate(meta_train_domains):
                 # Train random forest model on single domain with previous weights
                 X_train, y_train = self.extracted_features[domain]
+                #one_fifth_samples = np.random.choice(len(X_train), len(X_train) // 5, replace=False)
+                #X_train, y_train = X_train[one_fifth_samples], y_train[one_fifth_samples]
                 num_classes = len(np.unique(y_train))  # Get C (number of classes)
                 num_features = X_train.shape[1]
                 
                 rf_model = RandomForest(
                     n_estimators=self.per_random_forest_n_estimators,
-                    feature_subsample_ratio=np.sqrt(num_features),
+                    feature_subsample_ratio=0.02,#np.sqrt(num_features),
                     max_depth=self.per_random_forest_max_depth,
                     random_state=self.random_states[randomIndex]
                 )
                 rf_model.fit(X_train, y_train)
                 randomIndex += 1
-                
+                random.seed(self.random_states[randomIndex])
+                np.random.seed(self.random_states[randomIndex])
+
                 # Calculate W_accuracy
                 X_test, y_test = self.extracted_features[meta_test_domain]
+                #one_fifth_samples = np.random.choice(len(X_test), len(X_test) // 5, replace=False)
+                #X_test, y_test = X_test[one_fifth_samples], y_test[one_fifth_samples]
                 score = rf_model.score(X_test, y_test)
                 W_accuracy = self.compute_w_accuracy(score, num_classes)
 
@@ -226,7 +232,10 @@ class MetaForests:
         self.meta_weights_normalized = []
         
         # Store the latest iteration's models and weights
-        for forest, weight in zip(self.all_iterations_forests[-1], normalized_weights[-1]):
+        self.all_iterations_forests = [forest_info for forest_iteration in self.all_iterations_forests for forest_info in forest_iteration]
+        normalized_weights = [w for ww in normalized_weights for w in ww]
+        for forest, weight in zip(self.all_iterations_forests, normalized_weights):
+        # for forest, weight in zip(self.all_iterations_forests[-1], normalized_weights[-1]):
             self.meta_forests.append(forest)
             self.meta_weights_normalized.append(weight)
 
@@ -234,8 +243,8 @@ class MetaForests:
         """
         Predicts using the weighted ensemble of meta-forests from the final iteration.
         """
-        predictions_weighted = np.zeros((test_features.shape[0], len(np.unique(self.extracted_features[self.domains[0]][1]))))
-        
+        predictions_weighted = np.zeros((test_features.shape[0], len(np.unique(self.extracted_features[self.target_domain][1]))))
+
         for model_info, normalized_weight in zip(self.meta_forests, self.meta_weights_normalized):
             rf_model = model_info['model']
             preds_proba = rf_model.predict_proba(test_features)
@@ -300,5 +309,6 @@ class MetaForests:
         prev_w = self.all_iterations_weights[prev_i][j]
         mmd_factor = np.exp(self.alpha * w_mmd)
         # Fix: Use log^(βWaccuracy) instead of log(β*Waccuracy)
-        accuracy_factor = np.power(np.log(w_accuracy + self.epsilon), self.beta)
+        pre_accuracy_factor = np.log(w_accuracy + self.epsilon)
+        accuracy_factor = np.power(pre_accuracy_factor * np.sign(pre_accuracy_factor), self.beta) * np.sign(pre_accuracy_factor)
         return prev_w * mmd_factor * accuracy_factor
