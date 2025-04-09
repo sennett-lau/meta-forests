@@ -122,7 +122,8 @@ class MetaForests:
             epsilon: float = 1e-10,
             random_state: int = 42,
             per_random_forest_n_estimators: int = 100,
-            per_random_forest_max_depth: int = 5
+            per_random_forest_max_depth: int = 5,
+            mmd_kernel: str = 'rbf'
         ):
         """
         Initializes the MetaForests class.
@@ -138,6 +139,7 @@ class MetaForests:
         - random_state (int): Seed for reproducibility.
         - per_random_forest_n_estimators (int): Number of trees in each random forest.
         - per_random_forest_max_depth (int): Max depth of trees in each random forest.
+        - mmd_kernel (str): Kernel type for MMD calculation.
         """
         self.domains = domains
         self.target_domain = target_domain
@@ -154,7 +156,7 @@ class MetaForests:
         self.random_states = [random.randint(0, 1000000) for _ in range(self.epochs * (len(domains) - 1))]
         self.per_random_forest_n_estimators = per_random_forest_n_estimators
         self.per_random_forest_max_depth = per_random_forest_max_depth
-        
+        self.mmd_kernel = mmd_kernel
         # Store all forests and weights per iteration
         self.all_iterations_forests = []
         self.all_iterations_weights = []
@@ -216,7 +218,7 @@ class MetaForests:
                 W_accuracy = self.compute_w_accuracy(score, num_classes)
 
                 # Calculate W_mmd
-                mmd_ij = self.compute_mmd(X_train, X_test, kernel='rbf')
+                mmd_ij = self.compute_mmd(X_train, X_test, kernel=self.mmd_kernel)
                 self.all_iterations_mmds[i].append(mmd_ij)
                 W_mmd = self.compute_w_mmd(mmd_ij, i, j)
 

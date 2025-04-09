@@ -1,12 +1,12 @@
 from load_data import load_pacs_training_dataset, load_pacs_testing_dataset, load_vlcs_dataset
 from feature_extraction import feature_extract_resnet, feature_extract_decaf6
-import random
-from models import MetaForests, RandomForest, baseline_random_forest_fit
+from models import MetaForests, baseline_random_forest_fit
 import numpy as np
 import time
 import torch
 import os
 import pickle
+import pandas as pd
 
 def vlcs_load_and_extract_features(
     device: str = 'cuda' if torch.cuda.is_available() else 'cpu',
@@ -138,7 +138,8 @@ def meta_forests_on_vlcs(
         vlcs_domains: list[str] = None,
         vlcs_target_domain: str = None,
         training_extracted_features: dict = None,
-        testing_extracted_features: dict = None
+        testing_extracted_features: dict = None,
+        mmd_kernel: str = 'rbf',
     ):
     start_time = time.time()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -176,7 +177,8 @@ def meta_forests_on_vlcs(
         epsilon=epsilon,
         random_state=random_state,
         per_random_forest_n_estimators=per_random_forest_n_estimators,
-        per_random_forest_max_depth=per_random_forest_max_depth
+        per_random_forest_max_depth=per_random_forest_max_depth,
+        mmd_kernel=mmd_kernel
     )
     meta_forests.train()
     print("================================================")
@@ -200,18 +202,18 @@ def meta_forests_on_vlcs(
     print("================================================")
     print("Evaluating models...")
     print("================================================")
-    baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
     print(f"Meta-Forests accuracy on '{vlcs_target_domain}' domain: {meta_forests_accuracy:.4f}")
-    print(f"Baseline accuracy on '{vlcs_target_domain}' domain: {baseline_accuracy:.4f}")
-    improvement = meta_forests_accuracy - baseline_accuracy
+    print(f"Baseline accuracy on '{vlcs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
+    improvement = meta_forests_accuracy - rf_baseline_accuracy
     print(f"Improvement: {improvement:.4f}")
     print("================================================")
     print(f"Time taken: {time.time() - start_time:.2f} seconds")
     print("================================================")
 
-    return meta_forests_accuracy, baseline_accuracy, improvement
+    return meta_forests_accuracy, rf_baseline_accuracy, improvement
 
 def meta_forests_on_pacs(
         epochs: int = 10,
@@ -225,7 +227,8 @@ def meta_forests_on_pacs(
         pacs_domains: list[str] = None,
         pacs_target_domain: str = None,
         training_extracted_features: dict = None,
-        testing_extracted_features: dict = None
+        testing_extracted_features: dict = None,
+        mmd_kernel: str = 'rbf',
     ):
     # Sample code for PACS dataset loading and feature extraction
     # pacs_dataset = load_pacs_training_dataset()
@@ -270,7 +273,8 @@ def meta_forests_on_pacs(
         epsilon=epsilon,
         random_state=random_state,
         per_random_forest_n_estimators=per_random_forest_n_estimators,
-        per_random_forest_max_depth=per_random_forest_max_depth
+        per_random_forest_max_depth=per_random_forest_max_depth,
+        mmd_kernel=mmd_kernel
     )
     meta_forests.train()
     print("================================================")
@@ -294,18 +298,18 @@ def meta_forests_on_pacs(
     print("================================================")
     print("Evaluating models...")
     print("================================================")
-    baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
     print(f"Meta-Forests accuracy on '{pacs_target_domain}' domain: {meta_forests_accuracy:.4f}")
-    print(f"Baseline accuracy on '{pacs_target_domain}' domain: {baseline_accuracy:.4f}")
-    improvement = meta_forests_accuracy - baseline_accuracy
+    print(f"Baseline accuracy on '{pacs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
+    improvement = meta_forests_accuracy - rf_baseline_accuracy
     print(f"Improvement: {improvement:.4f}")
     print("================================================")
     print(f"Time taken: {time.time() - start_time:.2f} seconds")
     print("================================================")
 
-    return meta_forests_accuracy, baseline_accuracy, improvement
+    return meta_forests_accuracy, rf_baseline_accuracy, improvement
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -315,18 +319,41 @@ if __name__ == "__main__":
     vlcs_domains, vlcs_training_extracted_features, vlcs_testing_extracted_features = vlcs_load_and_extract_features(device=device)
     pacs_domains, pacs_training_extracted_features, pacs_testing_extracted_features = pacs_load_and_extract_features(device=device)
     
+    results = []
+
     for domain in vlcs_domains:
-        meta_forests_on_vlcs(
+        meta_forests_accuracy, rf_baseline_accuracy, improvement = meta_forests_on_vlcs(
             vlcs_domains=vlcs_domains,
             vlcs_target_domain=domain,
             training_extracted_features=vlcs_training_extracted_features,
             testing_extracted_features=vlcs_testing_extracted_features
         )
+        results.append({
+            'dataset': 'VLCS',
+            'domain': domain,
+            'meta_forests_accuracy': meta_forests_accuracy,
+            'rf_baseline_accuracy': rf_baseline_accuracy,
+            'improvement': improvement
+        })
+
         
     for domain in pacs_domains:
-        meta_forests_on_pacs(
+        meta_forests_accuracy, rf_baseline_accuracy, improvement = meta_forests_on_pacs(
             pacs_domains=pacs_domains,
             pacs_target_domain=domain,
             training_extracted_features=pacs_training_extracted_features,
             testing_extracted_features=pacs_testing_extracted_features
         )
+        results.append({
+            'dataset': 'PACS',
+            'domain': domain,
+            'meta_forests_accuracy': meta_forests_accuracy,
+            'rf_baseline_accuracy': rf_baseline_accuracy,
+            'improvement': improvement
+        })
+
+    results_df = pd.DataFrame(results)
+    
+    curr_dir = os.path.dirname(os.path.abspath(__file__))
+    save_path = os.path.join(curr_dir, 'results', 'accuracy_results.csv')
+    results_df.to_csv(save_path, index=False)

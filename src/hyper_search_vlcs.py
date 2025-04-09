@@ -17,7 +17,8 @@ def meta_forests_hyperparameter_search_on_vlcs():
         'beta': [0.5, 2.0],
         'epsilon': [1e-7, 1e-10],
         'per_random_forest_n_estimators': [50, 150],
-        'per_random_forest_max_depth': [3, 5, 7]
+        'per_random_forest_max_depth': [3, 5, 7],
+        'mmd_kernel': ['rbf', 'linear', 'poly']
     }
     
     # Fixed parameters
@@ -83,7 +84,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
         
         # Train and evaluate model with this parameter combination
         try:
-            meta_forests_accuracy, baseline_accuracy, improvement = meta_forests_on_vlcs(
+            meta_forests_accuracy, rf_baseline_accuracy, improvement = meta_forests_on_vlcs(
                 epochs=params['epochs'],
                 alpha=params['alpha'],
                 beta=params['beta'],
@@ -94,7 +95,8 @@ def meta_forests_hyperparameter_search_on_vlcs():
                 per_random_forest_max_depth=params['per_random_forest_max_depth'],
                 vlcs_domains=vlcs_domains,
                 training_extracted_features=training_extracted_features,
-                testing_extracted_features=testing_extracted_features
+                testing_extracted_features=testing_extracted_features,
+                mmd_kernel=params['mmd_kernel']
             )
             
             # Calculate runtime
@@ -103,7 +105,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
             # Save results
             result_row = {**params, 
                          'meta_forests_accuracy': meta_forests_accuracy, 
-                         'baseline_accuracy': baseline_accuracy,
+                         'rf_baseline_accuracy': rf_baseline_accuracy,
                          'improvement': improvement,
                          'runtime': runtime}
             
@@ -124,7 +126,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
             # Log the error in the results
             result_row = {**params, 
                          'meta_forests_accuracy': np.nan, 
-                         'baseline_accuracy': np.nan,
+                         'rf_baseline_accuracy': np.nan,
                          'improvement': np.nan,
                          'runtime': time.time() - start_time,
                          'error': str(e)}
@@ -145,7 +147,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
         best_row = results_df.iloc[results_df['improvement'].idxmax()]
         print("\n----- Best Overall Results -----")
         print(f"Meta-Forests accuracy: {best_row['meta_forests_accuracy']:.4f}")
-        print(f"Baseline accuracy: {best_row['baseline_accuracy']:.4f}")
+        print(f"Baseline accuracy: {best_row['rf_baseline_accuracy']:.4f}")
         print(f"Improvement: {best_row['improvement']:.4f}")
     
     return best_params, best_improvement
