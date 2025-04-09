@@ -49,6 +49,7 @@ class RandomForest:
         n_samples, n_features = X.shape
         available_features = set(range(n_features))
         feature_mask = set()
+        classes = np.unique(y)
 
         for i in range(self.n_estimators):
             # Reset feature mask if not enough features remain
@@ -62,12 +63,22 @@ class RandomForest:
             feature_mask.update(selected_features)
             self.features_used.append(selected_features)
 
-            # Bootstrap sample
-            indices = resample(range(n_samples), replace=True, random_state=self.random_state)
-            X_bootstrap = X[indices][:, selected_features]
-            y_bootstrap = y[indices]
+            # Stratified bootstrap sample
+            bootstrap_indices = []
+            # First ensure at least one sample from each class
+            for c in classes:
+                class_indices = np.where(y == c)[0]
+                bootstrap_indices.extend(self.random_state.choice(class_indices, size=1, replace=False))
+            
+            # Then sample remaining with replacement to match original bootstrap size
+            remaining_samples = n_samples - len(bootstrap_indices)
+            if remaining_samples > 0:
+                bootstrap_indices.extend(self.random_state.choice(range(n_samples), size=remaining_samples, replace=True))
 
-            # Train the tree on selected features, **with a max_depth**
+            X_bootstrap = X[bootstrap_indices][:, selected_features]
+            y_bootstrap = y[bootstrap_indices]
+
+            # Train the tree
             tree = DecisionTreeClassifier(
                 random_state=self.random_state,
                 max_depth=self.max_depth
@@ -103,8 +114,9 @@ class MetaForests:
     def __init__(
             self,
             domains: list,
+            target_domain: str,
             extracted_features: dict,
-            epochs: int = 20,
+            epochs: int = 10,
             alpha: float = -1.0,
             beta: float = 1.0,
             epsilon: float = 1e-10,
@@ -117,6 +129,7 @@ class MetaForests:
 
         Parameters:
         - domains (list): List of domain names.
+        - target_domain (str): Name of target domain.
         - extracted_features (dict): Dictionary containing features and labels for each domain. Each value is a tuple (features_array, labels_array).
         - epochs (int): Number of meta-learning iterations.
         - alpha (float): Parameter controlling the impact of MMD on weight updates.
@@ -127,6 +140,8 @@ class MetaForests:
         - per_random_forest_max_depth (int): Max depth of trees in each random forest.
         """
         self.domains = domains
+        self.target_domain = target_domain
+        self.source_domains = [d for d in self.domains if d != self.target_domain]
         self.extracted_features = extracted_features
         self.epochs = epochs
         self.alpha = alpha
@@ -161,37 +176,42 @@ class MetaForests:
         """
         normalized_weights = []
         randomIndex = 0
+        random.seed(self.random_states[randomIndex])
+        np.random.seed(self.random_states[randomIndex])
+
         for i in range(self.epochs):
             normalized_weights.append([])
-            random.seed(self.random_states[randomIndex])
-            np.random.seed(self.random_states[randomIndex])
             
-            # Randomly select 1 domain as D_meta_test
-            meta_test_domain = random.choice(self.domains)
-
-            # Randomly select num_of_train_domains domains as D_meta_train while ensuring no duplicates
-            remaining_domains = [d for d in self.domains if d != meta_test_domain]
-            num_of_train_domains = len(self.domains) - 2
-            meta_train_domains = random.sample(remaining_domains, num_of_train_domains)
+            # Randomly select 1 domain as D_meta_test; the other domains become D_meta_train
+            meta_test_domain = random.choice(self.source_domains)
+            meta_train_domains = [d for d in self.source_domains if d != meta_test_domain]
             
             # For each domain j in meta_train (M-2 domains)
             for j, domain in enumerate(meta_train_domains):
                 # Train random forest model on single domain with previous weights
+                # Fix: only 1/5 of the data should be used for meta-train, meta-test
                 X_train, y_train = self.extracted_features[domain]
-                num_classes = len(np.unique(y_train))  # Get C (number of classes)
+                indices = stratified_subsample(X_train, y_train)
+                X_train, y_train = X_train[indices], y_train[indices]
+                num_classes = len(np.unique(y_train))
                 num_features = X_train.shape[1]
                 
                 rf_model = RandomForest(
                     n_estimators=self.per_random_forest_n_estimators,
-                    feature_subsample_ratio=np.sqrt(num_features),
+                    feature_subsample_ratio=0.02,#np.sqrt(num_features),
                     max_depth=self.per_random_forest_max_depth,
                     random_state=self.random_states[randomIndex]
                 )
                 rf_model.fit(X_train, y_train)
                 randomIndex += 1
-                
+                random.seed(self.random_states[randomIndex])
+                np.random.seed(self.random_states[randomIndex])
+
                 # Calculate W_accuracy
+                # Fix: only 1/5 of the data should be used for meta-train, meta-test
                 X_test, y_test = self.extracted_features[meta_test_domain]
+                indices = stratified_subsample(X_test, y_test)
+                X_test, y_test = X_test[indices], y_test[indices]
                 score = rf_model.score(X_test, y_test)
                 W_accuracy = self.compute_w_accuracy(score, num_classes)
 
@@ -225,8 +245,11 @@ class MetaForests:
         self.meta_forests = []
         self.meta_weights_normalized = []
         
-        # Store the latest iteration's models and weights
-        for forest, weight in zip(self.all_iterations_forests[-1], normalized_weights[-1]):
+        # Store ALL iterations' models and weights
+        self.all_iterations_forests = [forest_info for forest_iteration in self.all_iterations_forests for forest_info in forest_iteration]
+        normalized_weights = [w for ww in normalized_weights for w in ww]
+        
+        for forest, weight in zip(self.all_iterations_forests, normalized_weights):
             self.meta_forests.append(forest)
             self.meta_weights_normalized.append(weight)
 
@@ -234,8 +257,8 @@ class MetaForests:
         """
         Predicts using the weighted ensemble of meta-forests from the final iteration.
         """
-        predictions_weighted = np.zeros((test_features.shape[0], len(np.unique(self.extracted_features[self.domains[0]][1]))))
-        
+        predictions_weighted = np.zeros((test_features.shape[0], len(np.unique(self.extracted_features[self.target_domain][1]))))
+
         for model_info, normalized_weight in zip(self.meta_forests, self.meta_weights_normalized):
             rf_model = model_info['model']
             preds_proba = rf_model.predict_proba(test_features)
@@ -300,5 +323,27 @@ class MetaForests:
         prev_w = self.all_iterations_weights[prev_i][j]
         mmd_factor = np.exp(self.alpha * w_mmd)
         # Fix: Use log^(βWaccuracy) instead of log(β*Waccuracy)
-        accuracy_factor = np.power(np.log(w_accuracy + self.epsilon), self.beta)
+        pre_accuracy_factor = np.log(w_accuracy + self.epsilon)
+        accuracy_factor = np.power(pre_accuracy_factor * np.sign(pre_accuracy_factor), self.beta) * np.sign(pre_accuracy_factor)
         return prev_w * mmd_factor * accuracy_factor
+
+def stratified_subsample(X, y, fraction=0.2):
+    """Helper function to get stratified subsample ensuring at least 1 sample per class"""
+    classes = np.unique(y)
+    indices = []
+    
+    # First ensure at least 1 sample from each class
+    for c in classes:
+        class_indices = np.where(y == c)[0]
+        indices.extend(np.random.choice(class_indices, size=1, replace=False))
+    
+    # Then sample remaining up to desired fraction
+    remaining_samples = max(0, int(len(X) * fraction) - len(indices))
+    if remaining_samples > 0:
+        # Get indices not already selected
+        available_indices = np.setdiff1d(np.arange(len(X)), indices)
+        # Stratified sampling from remaining
+        remaining_indices = np.random.choice(available_indices, size=remaining_samples, replace=False)
+        indices.extend(remaining_indices)
+    
+    return np.array(indices)
