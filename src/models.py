@@ -302,9 +302,9 @@ class MetaForests:
         Returns:
             float: MMD distance between the two distributions.
         """
-        XX = pairwise_kernels(X, X, metric=kernel, gamma=gamma)
-        YY = pairwise_kernels(Y, Y, metric=kernel, gamma=gamma)
-        XY = pairwise_kernels(X, Y, metric=kernel, gamma=gamma)
+        XX = pairwise_kernels(X, X, metric=kernel, gamma=gamma) if kernel != 'linear' else pairwise_kernels(X, X, metric=kernel)
+        YY = pairwise_kernels(Y, Y, metric=kernel, gamma=gamma) if kernel != 'linear' else pairwise_kernels(Y, Y, metric=kernel)
+        XY = pairwise_kernels(X, Y, metric=kernel, gamma=gamma) if kernel != 'linear' else pairwise_kernels(X, Y, metric=kernel)
 
         mmd = np.sqrt(XX.mean() + YY.mean() - 2 * XY.mean())
         return mmd

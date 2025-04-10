@@ -48,7 +48,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
         print(f"Loaded existing results file with {len(results_df)} entries")
     else:
         columns = list(keys) + list(fixed_params.keys()) + ['run_id', 'meta_forests_accuracy', 
-                                                          'baseline_accuracy', 'improvement', 'runtime']
+                                                          'rf_baseline_accuracy', 'improvement', 'runtime']
         results_df = pd.DataFrame(columns=columns)
         print("Created new results dataframe")
     
