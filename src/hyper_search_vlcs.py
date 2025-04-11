@@ -84,7 +84,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
         
         # Train and evaluate model with this parameter combination
         try:
-            meta_forests_accuracy, rf_baseline_accuracy, improvement = meta_forests_on_vlcs(
+            meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy = meta_forests_on_vlcs(
                 epochs=params['epochs'],
                 alpha=params['alpha'],
                 beta=params['beta'],
@@ -96,7 +96,8 @@ def meta_forests_hyperparameter_search_on_vlcs():
                 vlcs_domains=vlcs_domains,
                 training_extracted_features=training_extracted_features,
                 testing_extracted_features=testing_extracted_features,
-                mmd_kernel=params['mmd_kernel']
+                mmd_kernel=params['mmd_kernel'],
+                verbose=True
             )
             
             # Calculate runtime
@@ -106,7 +107,8 @@ def meta_forests_hyperparameter_search_on_vlcs():
             result_row = {**params, 
                          'meta_forests_accuracy': meta_forests_accuracy, 
                          'rf_baseline_accuracy': rf_baseline_accuracy,
-                         'improvement': improvement,
+                         'svm_baseline_accuracy': svm_baseline_accuracy,
+                         'improvement': meta_forests_accuracy - rf_baseline_accuracy,
                          'runtime': runtime}
             
             # Create a new DataFrame with the same columns as results_df to avoid the warning
@@ -115,11 +117,11 @@ def meta_forests_hyperparameter_search_on_vlcs():
             results_df.to_csv(results_file, index=False)
             
             # Update best performance
-            if improvement > best_improvement:
-                best_improvement = improvement
+            if meta_forests_accuracy - rf_baseline_accuracy > best_improvement:
+                best_improvement = meta_forests_accuracy - rf_baseline_accuracy
                 best_params = {k: params[k] for k in keys}
                 
-            print(f"Completed in {runtime:.2f} seconds with improvement: {improvement:.4f}")
+            print(f"Completed in {runtime:.2f} seconds with improvement: {meta_forests_accuracy - rf_baseline_accuracy:.4f}")
             
         except Exception as e:
             print(f"Error running combination {run_id}: {str(e)}")
@@ -127,6 +129,7 @@ def meta_forests_hyperparameter_search_on_vlcs():
             result_row = {**params, 
                          'meta_forests_accuracy': np.nan, 
                          'rf_baseline_accuracy': np.nan,
+                         'svm_baseline_accuracy': np.nan,
                          'improvement': np.nan,
                          'runtime': time.time() - start_time,
                          'error': str(e)}

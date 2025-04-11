@@ -3,12 +3,13 @@ import random
 from sklearn.metrics.pairwise import pairwise_kernels
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 from sklearn.utils import resample
 
 
 def baseline_random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, random_state=None):
     """
-    Trains a Random Forest model on VLCS dataset features clearly.
+    Trains a Random Forest model on VLCS or PACS dataset features clearly.
 
     Parameters:
     - X_train (np.ndarray): Training features clearly.
@@ -29,6 +30,32 @@ def baseline_random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, 
     rf.fit(X_train, y_train)
     return rf
 
+def baseline_svm_fit(X_train, y_train, C=1.0, kernel='rbf', degree=3, gamma='scale', coef0=0.0, break_ties=False, random_state=None):
+    """
+    Trains a Support Vector Machine model on VLCS or PACS dataset features clearly.
+
+    Parameters:
+    - X_train (np.ndarray): Training features clearly.
+    - y_train (np.ndarray): Training labels clearly.
+    - n_estimators (int): Number of trees clearly.
+    - max_depth (int): Max depth of trees clearly.
+    - random_state (int): Random state for reproducibility clearly.
+
+    Returns:
+    - Trained RandomForestClassifier model clearly.
+    """
+    svc = SVC(
+        C=C,
+        kernel=kernel,
+        degree=degree,
+        gamma=gamma,
+        coef0=coef0,
+        break_ties=break_ties,
+        random_state=random_state
+    )
+
+    svc.fit(X_train, y_train)
+    return svc
 
 class RandomForest:
     def __init__(
@@ -171,7 +198,7 @@ class MetaForests:
             self.all_iterations_weights.append(each_forest_weights)
             self.all_iterations_mmds.append([])
             
-    def train(self):
+    def train(self, verbose=False):
         """
         Trains the meta-forests using meta-learning according to the algorithm.
         Please note that we are using i and j from 0, but the algorithm in the paper uses 1.
@@ -234,10 +261,11 @@ class MetaForests:
 
                 self.all_iterations_forests[i].append(forest_info)
 
-                print(f"Iteration {i+1}/{self.epochs} | Domain {j+1}/{len(meta_train_domains)} | "
-                      f"Meta-test: {meta_test_domain}, Meta-train: {domain}, "
-                      f"MMD: {mmd_ij:.4f}, W_mmd: {W_mmd:.4f}, "
-                      f"Accuracy: {W_accuracy:.4f}, Weight: {W_ij:.6f}")
+                if verbose:
+                    print(f"Iteration {i+1}/{self.epochs} | Domain {j+1}/{len(meta_train_domains)} | "
+                        f"Meta-test: {meta_test_domain}, Meta-train: {domain}, "
+                        f"MMD: {mmd_ij:.4f}, W_mmd: {W_mmd:.4f}, "
+                        f"Accuracy: {W_accuracy:.4f}, Weight: {W_ij:.6f}")
             
             # Normalize weights for this iteration
             total_weight = sum(self.all_iterations_weights[i])

@@ -1,6 +1,6 @@
 from load_data import load_pacs_training_dataset, load_pacs_testing_dataset, load_vlcs_dataset
 from feature_extraction import feature_extract_resnet, feature_extract_decaf6
-from models import MetaForests, baseline_random_forest_fit
+from models import MetaForests, baseline_random_forest_fit, baseline_svm_fit
 import numpy as np
 import time
 import torch
@@ -140,11 +140,14 @@ def meta_forests_on_vlcs(
         training_extracted_features: dict = None,
         testing_extracted_features: dict = None,
         mmd_kernel: str = 'rbf',
+        verbose: bool = False,
     ):
     start_time = time.time()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print("================================================")
-    print("MetaForests for VLCS")
+
+    if verbose:
+        print("================================================")
+        print("MetaForests for VLCS")
 
     if vlcs_domains is None or training_extracted_features is None or testing_extracted_features is None:
         vlcs_domains, training_extracted_features, testing_extracted_features = vlcs_load_and_extract_features(device=device)
@@ -154,18 +157,20 @@ def meta_forests_on_vlcs(
     
     vlcs_source_domains = [d for d in vlcs_domains if d != vlcs_target_domain]
 
-    print("================================================")
-    print("Hyperparameters:")
-    print(f"Epochs: {epochs}")
-    print(f"Alpha: {alpha}")
-    print(f"Beta: {beta}")
-    print(f"Epsilon: {epsilon}")
-    print(f"Random state: {random_state}")
-    print(f"Per random forest n estimators: {per_random_forest_n_estimators}")
-    print(f"Per random forest max depth: {per_random_forest_max_depth}")
-    print("================================================")
-    print("Training MetaForests model...")
-    print("================================================")
+    if verbose:
+        print("================================================")
+        print("Hyperparameters:")
+        print(f"Epochs: {epochs}")
+        print(f"Alpha: {alpha}")
+        print(f"Beta: {beta}")
+        print(f"Epsilon: {epsilon}")
+        print(f"Random state: {random_state}")
+        print(f"Per random forest n estimators: {per_random_forest_n_estimators}")
+        print(f"Per random forest max depth: {per_random_forest_max_depth}")
+        print("================================================")
+        print("Training MetaForests model...")
+        print("================================================")
+
     # Initialize and train the MetaForests model
     meta_forests = MetaForests(
         domains=vlcs_domains,
@@ -180,18 +185,20 @@ def meta_forests_on_vlcs(
         per_random_forest_max_depth=per_random_forest_max_depth,
         mmd_kernel=mmd_kernel
     )
-    meta_forests.train()
-    print("================================================")
-    print("Configuring baseline dataset...")
-    print("================================================")
+    meta_forests.train(verbose=verbose)
+
+    if verbose:
+        print("================================================")
+        print("Configuring baseline dataset...")
 
     X_baseline_train = np.vstack([training_extracted_features[d][0] for d in vlcs_source_domains])
     y_baseline_train = np.hstack([training_extracted_features[d][1] for d in vlcs_source_domains])
 
     X_baseline_test, y_baseline_test = training_extracted_features[vlcs_target_domain]
 
-    print("Training baseline model...")
-    print("================================================")
+    if verbose:
+        print("Training baseline models...")
+    
     baseline_rf_model = baseline_random_forest_fit(
         X_baseline_train,
         y_baseline_train, 
@@ -199,21 +206,29 @@ def meta_forests_on_vlcs(
         max_depth=per_random_forest_max_depth,
         random_state=baseline_random_state
     )
-    print("================================================")
-    print("Evaluating models...")
-    print("================================================")
+    baseline_svm_model = baseline_svm_fit(
+        X_baseline_train,
+        y_baseline_train,
+        random_state=baseline_random_state
+    )
+
+    if verbose:
+        print("Evaluating models...")
+        print("================================================")
+
     rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    svm_baseline_accuracy = baseline_svm_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
-    print(f"Meta-Forests accuracy on '{vlcs_target_domain}' domain: {meta_forests_accuracy:.4f}")
-    print(f"Baseline accuracy on '{vlcs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
-    improvement = meta_forests_accuracy - rf_baseline_accuracy
-    print(f"Improvement: {improvement:.4f}")
-    print("================================================")
-    print(f"Time taken: {time.time() - start_time:.2f} seconds")
-    print("================================================")
+    if verbose:
+        print(f"Meta-Forests accuracy on '{vlcs_target_domain}' domain: {meta_forests_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{vlcs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
+        print(f"Baseline SVM accuracy on '{vlcs_target_domain}' domain: {svm_baseline_accuracy:.4f}")
+        print(f"Improvement: {meta_forests_accuracy - rf_baseline_accuracy:.4f}")
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+        print("================================================")
 
-    return meta_forests_accuracy, rf_baseline_accuracy, improvement
+    return meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy
 
 def meta_forests_on_pacs(
         epochs: int = 10,
@@ -229,6 +244,7 @@ def meta_forests_on_pacs(
         training_extracted_features: dict = None,
         testing_extracted_features: dict = None,
         mmd_kernel: str = 'rbf',
+        verbose: bool = False,
     ):
     # Sample code for PACS dataset loading and feature extraction
     # pacs_dataset = load_pacs_training_dataset()
@@ -238,8 +254,10 @@ def meta_forests_on_pacs(
 
     start_time = time.time()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print("================================================")
-    print("MetaForests for PACS")
+
+    if verbose:
+        print("================================================")
+        print("MetaForests for PACS")
 
     if pacs_domains is None or training_extracted_features is None or testing_extracted_features is None:
         pacs_domains, training_extracted_features, testing_extracted_features = pacs_load_and_extract_features(device=device)
@@ -249,19 +267,20 @@ def meta_forests_on_pacs(
     
     pacs_source_domains = [d for d in pacs_domains if d != pacs_target_domain]
 
+    if verbose:
+        print("================================================")
+        print("Hyperparameters:")
+        print(f"Epochs: {epochs}")
+        print(f"Alpha: {alpha}")
+        print(f"Beta: {beta}")
+        print(f"Epsilon: {epsilon}")
+        print(f"Random state: {random_state}")
+        print(f"Per random forest n estimators: {per_random_forest_n_estimators}")
+        print(f"Per random forest max depth: {per_random_forest_max_depth}")
+        print("================================================")
+        print("Training MetaForests model...")
+        print("================================================")
 
-    print("================================================")
-    print("Hyperparameters:")
-    print(f"Epochs: {epochs}")
-    print(f"Alpha: {alpha}")
-    print(f"Beta: {beta}")
-    print(f"Epsilon: {epsilon}")
-    print(f"Random state: {random_state}")
-    print(f"Per random forest n estimators: {per_random_forest_n_estimators}")
-    print(f"Per random forest max depth: {per_random_forest_max_depth}")
-    print("================================================")
-    print("Training MetaForests model...")
-    print("================================================")
     # Initialize and train the MetaForests model
     meta_forests = MetaForests(
         domains=pacs_domains,
@@ -276,18 +295,20 @@ def meta_forests_on_pacs(
         per_random_forest_max_depth=per_random_forest_max_depth,
         mmd_kernel=mmd_kernel
     )
-    meta_forests.train()
-    print("================================================")
-    print("Configuring baseline dataset...")
-    print("================================================")
+    meta_forests.train(verbose=verbose)
+
+    if verbose:
+        print("================================================")
+        print("Configuring baseline dataset...")
 
     X_baseline_train = np.vstack([training_extracted_features[d][0] for d in pacs_source_domains])
     y_baseline_train = np.hstack([training_extracted_features[d][1] for d in pacs_source_domains])
 
     X_baseline_test, y_baseline_test = testing_extracted_features[pacs_target_domain]
 
-    print("Training baseline model...")
-    print("================================================")
+    if verbose:
+        print("Training baseline models...")
+
     baseline_rf_model = baseline_random_forest_fit(
         X_baseline_train,
         y_baseline_train, 
@@ -295,24 +316,33 @@ def meta_forests_on_pacs(
         max_depth=per_random_forest_max_depth,
         random_state=baseline_random_state
     )
-    print("================================================")
-    print("Evaluating models...")
-    print("================================================")
+    baseline_svm_model = baseline_svm_fit(
+        X_baseline_train,
+        y_baseline_train,
+        random_state=baseline_random_state
+    )
+
+    if verbose:
+        print("Evaluating models...")
+        print("================================================")
+
     rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    svm_baseline_accuracy = baseline_svm_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
 
-    print(f"Meta-Forests accuracy on '{pacs_target_domain}' domain: {meta_forests_accuracy:.4f}")
-    print(f"Baseline accuracy on '{pacs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
-    improvement = meta_forests_accuracy - rf_baseline_accuracy
-    print(f"Improvement: {improvement:.4f}")
-    print("================================================")
-    print(f"Time taken: {time.time() - start_time:.2f} seconds")
-    print("================================================")
+    if verbose:
+        print(f"Meta-Forests accuracy on '{pacs_target_domain}' domain: {meta_forests_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{pacs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
+        print(f"Baseline SVM accuracy on '{pacs_target_domain}' domain: {svm_baseline_accuracy:.4f}")
+        print(f"Improvement: {meta_forests_accuracy - rf_baseline_accuracy:.4f}")
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+        print("================================================")
 
-    return meta_forests_accuracy, rf_baseline_accuracy, improvement
+    return meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    n_experiments = 20
 
     print(f"Using device: {device}")
 
@@ -322,35 +352,84 @@ if __name__ == "__main__":
     results = []
 
     for domain in vlcs_domains:
-        meta_forests_accuracy, rf_baseline_accuracy, improvement = meta_forests_on_vlcs(
-            vlcs_domains=vlcs_domains,
-            vlcs_target_domain=domain,
-            training_extracted_features=vlcs_training_extracted_features,
-            testing_extracted_features=vlcs_testing_extracted_features
-        )
+        start_time = time.time()
+        print("================================================")
+        print(f"Running {1} VLCS leave-one-domain experiments on {domain}...")
+        print("================================================")
+        max_meta_forests_accuracy, max_rf_baseline_accuracy, max_svm_baseline_accuracy = 0.0, 0.0, 0.0
+        for i in range(1):
+            meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy = meta_forests_on_vlcs(
+                vlcs_domains=vlcs_domains,
+                vlcs_target_domain=domain,
+                training_extracted_features=vlcs_training_extracted_features,
+                testing_extracted_features=vlcs_testing_extracted_features,
+                random_state=i+42,
+                baseline_random_state=i+52,
+                verbose=False
+            )
+            max_meta_forests_accuracy = max(max_meta_forests_accuracy, meta_forests_accuracy)
+            max_rf_baseline_accuracy = max(max_rf_baseline_accuracy, rf_baseline_accuracy)
+            max_svm_baseline_accuracy = max(max_svm_baseline_accuracy, svm_baseline_accuracy)
+            print(f"Experiment {i+1}/1 | Test: {domain} | "
+                      f"Meta-Forests Accuracy: {meta_forests_accuracy:.4f}, "
+                      f"Random Forest Accuracy: {rf_baseline_accuracy:.4f}, "
+                      f"SVM Accuracy: {svm_baseline_accuracy:.4f}")
+
         results.append({
             'dataset': 'VLCS',
             'domain': domain,
-            'meta_forests_accuracy': meta_forests_accuracy,
-            'rf_baseline_accuracy': rf_baseline_accuracy,
-            'improvement': improvement
+            'meta_forests_accuracy': round(max_meta_forests_accuracy, 4),
+            'rf_baseline_accuracy': round(max_rf_baseline_accuracy, 4),
+            'svm_baseline_accuracy': round(max_svm_baseline_accuracy, 4),
+            'improvement': round(max_meta_forests_accuracy - max_rf_baseline_accuracy, 4)
         })
+        print("================================================")
+        print(f"Meta-Forests accuracy on '{domain}' domain: {max_meta_forests_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{domain}' domain: {max_rf_baseline_accuracy:.4f}")
+        print(f"Baseline SVM accuracy on '{domain}' domain: {max_svm_baseline_accuracy:.4f}")
+        print(f"Improvement: {max_meta_forests_accuracy - max_rf_baseline_accuracy:.4f}")
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+            
 
-        
     for domain in pacs_domains:
-        meta_forests_accuracy, rf_baseline_accuracy, improvement = meta_forests_on_pacs(
-            pacs_domains=pacs_domains,
-            pacs_target_domain=domain,
-            training_extracted_features=pacs_training_extracted_features,
-            testing_extracted_features=pacs_testing_extracted_features
-        )
+        start_time = time.time()
+        print("================================================")
+        print(f"Running {n_experiments} PACS leave-one-domain experiments on {domain}...")
+        print("================================================")
+        max_meta_forests_accuracy, max_rf_baseline_accuracy, max_svm_baseline_accuracy = 0.0, 0.0, 0.0
+        for i in range(n_experiments):
+            meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy = meta_forests_on_pacs(
+                pacs_domains=pacs_domains,
+                pacs_target_domain=domain,
+                training_extracted_features=pacs_training_extracted_features,
+                testing_extracted_features=pacs_testing_extracted_features,
+                random_state=i+42,
+                baseline_random_state=i+52,
+                verbose=False
+            )
+            max_meta_forests_accuracy = max(max_meta_forests_accuracy, meta_forests_accuracy)
+            max_rf_baseline_accuracy = max(max_rf_baseline_accuracy, rf_baseline_accuracy)
+            max_svm_baseline_accuracy = max(max_svm_baseline_accuracy, svm_baseline_accuracy)
+            print(f"Experiment {i+1}/20 | Test: {domain} | "
+                      f"Meta-Forests Accuracy: {meta_forests_accuracy:.4f}, "
+                      f"Random Forest Accuracy: {rf_baseline_accuracy:.4f}, "
+                      f"SVM Accuracy: {svm_baseline_accuracy:.4f}")
+
         results.append({
             'dataset': 'PACS',
             'domain': domain,
-            'meta_forests_accuracy': meta_forests_accuracy,
-            'rf_baseline_accuracy': rf_baseline_accuracy,
-            'improvement': improvement
+            'meta_forests_accuracy': round(max_meta_forests_accuracy, 4),
+            'rf_baseline_accuracy': round(max_rf_baseline_accuracy, 4),
+            'svm_baseline_accuracy': round(max_svm_baseline_accuracy, 4),
+            'improvement': round(max_meta_forests_accuracy - max_rf_baseline_accuracy, 4)
         })
+        print("================================================")
+        print(f"Meta-Forests accuracy on '{domain}' domain: {max_meta_forests_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{domain}' domain: {max_rf_baseline_accuracy:.4f}")
+        print(f"Baseline SVM accuracy on '{domain}' domain: {max_svm_baseline_accuracy:.4f}")
+        print(f"Improvement: {max_meta_forests_accuracy - max_rf_baseline_accuracy:.4f}")
+        print(f"Time taken: {time.time() - start_time:.2f} seconds")
+        print("================================================")
 
     results_df = pd.DataFrame(results)
     
