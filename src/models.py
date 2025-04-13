@@ -134,58 +134,6 @@ def baseline_xg_boost_fit(X_train, y_train, lr=0.1, max_depth=5, l2_reg=0.0, ran
     xgb.fit(X_train, y_train)
     return xgb
 
-"""
-class MLDG:
-    def __init__(
-        self,
-        domains: list,
-        target_domain: str,
-        extracted_features: dict,
-        epochs: int = 10,
-        alpha: float = 1.0,
-        beta: float = 1.0,
-        epsilon: float = 1e-10,
-        random_state: int = 42,
-
-    ):
-        self.domains = domains
-        self.target_domain = target_domain
-        self.source_domains = [d for d in self.domains if d != self.target_domain]
-        self.extracted_features = extracted_features
-        self.epochs = epochs
-        self.alpha = alpha
-        self.beta = beta
-        self.epsilon = epsilon
-        self.random_state = random_state
-        self.weights = []
-        self.num_classes = len(np.unique(self.extracted_features[target_domain][1]))
-        self.num_features = self.extracted_features[target_domain][0].shape[1]
-
-        self.fc1 = nn.Linear(512, 512)
-        self.fc2 = nn.Linear(512, self.num_classes)
-        self.relu = nn.ReLU()
-        self.loss_fn = nn.CrossEntropyLoss()
-    
-    def forward(self, X):
-        return self.softmax(self.fc2(self.relu(self.fc1(X))))
-    
-    def train(self):
-        random.seed(self.random_state)
-        np.random.seed(self.random_state)
-
-        for i in range(self.epochs):
-        # Randomly select 1 domain as D_meta_test; the other domains become D_meta_train
-            meta_test_domain = random.choice(self.source_domains)
-            meta_train_domains = [d for d in self.source_domains if d != meta_test_domain]
-            # For each domain j in meta_train (M-2 domains)
-            for j, domain in enumerate(meta_train_domains):
-                X_train, y_train = self.extracted_features[domain]
-                loss = self.loss_fn(self.forward(X_train), y_train)
-                loss.backward()
-
-                X_test, y_test = self.extracted_features[meta_test_domain]
-
-"""
 
 class RandomForest:
     def __init__(

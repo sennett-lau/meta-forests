@@ -404,10 +404,10 @@ if __name__ == "__main__":
     for domain in vlcs_domains:
         start_time = time.time()
         print("================================================")
-        print(f"Running {1} VLCS leave-one-domain experiments on {domain}...")
+        print(f"Running {2} VLCS leave-one-domain experiments on {domain}...")
         print("================================================")
         max_meta_forests_accuracy, max_svm_baseline_accuracy, max_rf_baseline_accuracy, max_et_baseline_accuracy, max_ada_baseline_accuracy, max_xgb_baseline_accuracy = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-        for i in range(1):
+        for i in range(2):
             meta_forests_accuracy, svm_baseline_accuracy, rf_baseline_accuracy, et_baseline_accuracy, ada_baseline_accuracy, xgb_baseline_accuracy = meta_forests_on_vlcs(
                 vlcs_domains=vlcs_domains,
                 vlcs_target_domain=domain,
@@ -423,7 +423,7 @@ if __name__ == "__main__":
             max_et_baseline_accuracy = max(max_et_baseline_accuracy, et_baseline_accuracy)
             max_ada_baseline_accuracy = max(max_ada_baseline_accuracy, ada_baseline_accuracy)
             max_xgb_baseline_accuracy = max(max_xgb_baseline_accuracy, xgb_baseline_accuracy)
-            print(f"Experiment {i+1}/1 | Test: {domain} | "
+            print(f"Experiment {i+1}/2 | Test: {domain} | "
                       f"Meta-Forests Acc: {max_meta_forests_accuracy:.4f}, "
                       f"SVM Acc: {max_svm_baseline_accuracy:.4f}, "
                       f"Random Forest Acc: {max_rf_baseline_accuracy:.4f}, "
