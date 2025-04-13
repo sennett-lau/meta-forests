@@ -1,6 +1,6 @@
 from load_data import load_pacs_training_dataset, load_pacs_testing_dataset, load_vlcs_dataset
 from feature_extraction import feature_extract_resnet, feature_extract_decaf6
-from models import MetaForests, baseline_random_forest_fit, baseline_svm_fit
+from models import MetaForests, baseline_svm_fit, baseline_random_forest_fit, baseline_extra_trees_fit, baseline_ada_boost_fit, baseline_xg_boost_fit
 import numpy as np
 import time
 import torch
@@ -199,6 +199,11 @@ def meta_forests_on_vlcs(
     if verbose:
         print("Training baseline models...")
     
+    baseline_svm_model = baseline_svm_fit(
+        X_baseline_train,
+        y_baseline_train,
+        random_state=baseline_random_state
+    )
     baseline_rf_model = baseline_random_forest_fit(
         X_baseline_train,
         y_baseline_train, 
@@ -206,9 +211,26 @@ def meta_forests_on_vlcs(
         max_depth=per_random_forest_max_depth,
         random_state=baseline_random_state
     )
-    baseline_svm_model = baseline_svm_fit(
+    baseline_et_model = baseline_extra_trees_fit(
+        X_baseline_train,
+        y_baseline_train, 
+        n_estimators=per_random_forest_n_estimators,
+        max_depth=per_random_forest_max_depth,
+        random_state=baseline_random_state
+    )
+    baseline_ada_model = baseline_ada_boost_fit(
         X_baseline_train,
         y_baseline_train,
+        n_estimators=per_random_forest_n_estimators,
+        lr=0.1,
+        random_state=baseline_random_state
+    )
+    baseline_xgb_model = baseline_xg_boost_fit(
+        X_baseline_train,
+        y_baseline_train,
+        lr=0.1,
+        max_depth=per_random_forest_max_depth,
+        l2_reg=0.0,
         random_state=baseline_random_state
     )
 
@@ -216,19 +238,25 @@ def meta_forests_on_vlcs(
         print("Evaluating models...")
         print("================================================")
 
-    rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
-    svm_baseline_accuracy = baseline_svm_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
+    svm_baseline_accuracy = baseline_svm_model.score(X_baseline_test, y_baseline_test)
+    rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    et_baseline_accuracy = baseline_et_model.score(X_baseline_test, y_baseline_test)
+    ada_baseline_accuracy = baseline_ada_model.score(X_baseline_test, y_baseline_test)
+    xgb_baseline_accuracy = baseline_xgb_model.score(X_baseline_test, y_baseline_test)
 
     if verbose:
         print(f"Meta-Forests accuracy on '{vlcs_target_domain}' domain: {meta_forests_accuracy:.4f}")
-        print(f"Baseline Random Forest accuracy on '{vlcs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
         print(f"Baseline SVM accuracy on '{vlcs_target_domain}' domain: {svm_baseline_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{vlcs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
+        print(f"Baseline Extra Trees accuracy on '{vlcs_target_domain}' domain: {et_baseline_accuracy:.4f}")
+        print(f"Baseline AdaBoost accuracy on '{vlcs_target_domain}' domain: {ada_baseline_accuracy:.4f}")
+        print(f"Baseline XGBoost accuracy on '{vlcs_target_domain}' domain: {xgb_baseline_accuracy:.4f}")
         print(f"Improvement: {meta_forests_accuracy - rf_baseline_accuracy:.4f}")
         print(f"Time taken: {time.time() - start_time:.2f} seconds")
         print("================================================")
 
-    return meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy
+    return meta_forests_accuracy, svm_baseline_accuracy, rf_baseline_accuracy, et_baseline_accuracy, ada_baseline_accuracy, xgb_baseline_accuracy
 
 def meta_forests_on_pacs(
         epochs: int = 10,
@@ -246,12 +274,6 @@ def meta_forests_on_pacs(
         mmd_kernel: str = 'rbf',
         verbose: bool = False,
     ):
-    # Sample code for PACS dataset loading and feature extraction
-    # pacs_dataset = load_pacs_training_dataset()
-    # features_array, labels_array = feature_extract_resnet(pacs_dataset)
-    # print(features_array.shape)
-    # print(labels_array.shape)
-
     start_time = time.time()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -309,6 +331,11 @@ def meta_forests_on_pacs(
     if verbose:
         print("Training baseline models...")
 
+    baseline_svm_model = baseline_svm_fit(
+        X_baseline_train,
+        y_baseline_train,
+        random_state=baseline_random_state
+    )
     baseline_rf_model = baseline_random_forest_fit(
         X_baseline_train,
         y_baseline_train, 
@@ -316,9 +343,26 @@ def meta_forests_on_pacs(
         max_depth=per_random_forest_max_depth,
         random_state=baseline_random_state
     )
-    baseline_svm_model = baseline_svm_fit(
+    baseline_et_model = baseline_extra_trees_fit(
+        X_baseline_train,
+        y_baseline_train, 
+        n_estimators=per_random_forest_n_estimators,
+        max_depth=per_random_forest_max_depth,
+        random_state=baseline_random_state
+    )
+    baseline_ada_model = baseline_ada_boost_fit(
         X_baseline_train,
         y_baseline_train,
+        n_estimators=per_random_forest_n_estimators,
+        lr=0.1,
+        random_state=baseline_random_state
+    )
+    baseline_xgb_model = baseline_xg_boost_fit(
+        X_baseline_train,
+        y_baseline_train,
+        lr=0.1,
+        max_depth=per_random_forest_max_depth,
+        l2_reg=0.0,
         random_state=baseline_random_state
     )
 
@@ -326,19 +370,25 @@ def meta_forests_on_pacs(
         print("Evaluating models...")
         print("================================================")
 
-    rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
-    svm_baseline_accuracy = baseline_svm_model.score(X_baseline_test, y_baseline_test)
     meta_forests_accuracy = meta_forests.score(X_baseline_test, y_baseline_test)
+    svm_baseline_accuracy = baseline_svm_model.score(X_baseline_test, y_baseline_test)
+    rf_baseline_accuracy = baseline_rf_model.score(X_baseline_test, y_baseline_test)
+    et_baseline_accuracy = baseline_et_model.score(X_baseline_test, y_baseline_test)
+    ada_baseline_accuracy = baseline_ada_model.score(X_baseline_test, y_baseline_test)
+    xgb_baseline_accuracy = baseline_xgb_model.score(X_baseline_test, y_baseline_test)
 
     if verbose:
         print(f"Meta-Forests accuracy on '{pacs_target_domain}' domain: {meta_forests_accuracy:.4f}")
-        print(f"Baseline Random Forest accuracy on '{pacs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
         print(f"Baseline SVM accuracy on '{pacs_target_domain}' domain: {svm_baseline_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{pacs_target_domain}' domain: {rf_baseline_accuracy:.4f}")
+        print(f"Baseline Extra Trees accuracy on '{pacs_target_domain}' domain: {et_baseline_accuracy:.4f}")
+        print(f"Baseline AdaBoost accuracy on '{pacs_target_domain}' domain: {ada_baseline_accuracy:.4f}")
+        print(f"Baseline XGBoost accuracy on '{pacs_target_domain}' domain: {xgb_baseline_accuracy:.4f}")
         print(f"Improvement: {meta_forests_accuracy - rf_baseline_accuracy:.4f}")
         print(f"Time taken: {time.time() - start_time:.2f} seconds")
         print("================================================")
 
-    return meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy
+    return meta_forests_accuracy, svm_baseline_accuracy, rf_baseline_accuracy, et_baseline_accuracy, ada_baseline_accuracy, xgb_baseline_accuracy
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -356,9 +406,9 @@ if __name__ == "__main__":
         print("================================================")
         print(f"Running {1} VLCS leave-one-domain experiments on {domain}...")
         print("================================================")
-        max_meta_forests_accuracy, max_rf_baseline_accuracy, max_svm_baseline_accuracy = 0.0, 0.0, 0.0
+        max_meta_forests_accuracy, max_svm_baseline_accuracy, max_rf_baseline_accuracy, max_et_baseline_accuracy, max_ada_baseline_accuracy, max_xgb_baseline_accuracy = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         for i in range(1):
-            meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy = meta_forests_on_vlcs(
+            meta_forests_accuracy, svm_baseline_accuracy, rf_baseline_accuracy, et_baseline_accuracy, ada_baseline_accuracy, xgb_baseline_accuracy = meta_forests_on_vlcs(
                 vlcs_domains=vlcs_domains,
                 vlcs_target_domain=domain,
                 training_extracted_features=vlcs_training_extracted_features,
@@ -368,37 +418,49 @@ if __name__ == "__main__":
                 verbose=False
             )
             max_meta_forests_accuracy = max(max_meta_forests_accuracy, meta_forests_accuracy)
-            max_rf_baseline_accuracy = max(max_rf_baseline_accuracy, rf_baseline_accuracy)
             max_svm_baseline_accuracy = max(max_svm_baseline_accuracy, svm_baseline_accuracy)
+            max_rf_baseline_accuracy = max(max_rf_baseline_accuracy, rf_baseline_accuracy)
+            max_et_baseline_accuracy = max(max_et_baseline_accuracy, et_baseline_accuracy)
+            max_ada_baseline_accuracy = max(max_ada_baseline_accuracy, ada_baseline_accuracy)
+            max_xgb_baseline_accuracy = max(max_xgb_baseline_accuracy, xgb_baseline_accuracy)
             print(f"Experiment {i+1}/1 | Test: {domain} | "
-                      f"Meta-Forests Accuracy: {meta_forests_accuracy:.4f}, "
-                      f"Random Forest Accuracy: {rf_baseline_accuracy:.4f}, "
-                      f"SVM Accuracy: {svm_baseline_accuracy:.4f}")
+                      f"Meta-Forests Acc: {max_meta_forests_accuracy:.4f}, "
+                      f"SVM Acc: {max_svm_baseline_accuracy:.4f}, "
+                      f"Random Forest Acc: {max_rf_baseline_accuracy:.4f}, "
+                      f"Extra Trees Acc: {max_et_baseline_accuracy:.4f}, "
+                      f"AdaBoost Acc: {max_ada_baseline_accuracy:.4f}, "
+                      f"XGBoost Acc: {max_xgb_baseline_accuracy:.4f}")
 
         results.append({
             'dataset': 'VLCS',
             'domain': domain,
             'meta_forests_accuracy': round(max_meta_forests_accuracy, 4),
-            'rf_baseline_accuracy': round(max_rf_baseline_accuracy, 4),
             'svm_baseline_accuracy': round(max_svm_baseline_accuracy, 4),
+            'rf_baseline_accuracy': round(max_rf_baseline_accuracy, 4),
+            'et_baseline_accuracy': round(max_et_baseline_accuracy, 4),
+            'ada_baseline_accuracy': round(max_ada_baseline_accuracy, 4),
+            'xgb_baseline_accuracy': round(max_xgb_baseline_accuracy, 4),
             'improvement': round(max_meta_forests_accuracy - max_rf_baseline_accuracy, 4)
         })
         print("================================================")
         print(f"Meta-Forests accuracy on '{domain}' domain: {max_meta_forests_accuracy:.4f}")
-        print(f"Baseline Random Forest accuracy on '{domain}' domain: {max_rf_baseline_accuracy:.4f}")
         print(f"Baseline SVM accuracy on '{domain}' domain: {max_svm_baseline_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{domain}' domain: {max_rf_baseline_accuracy:.4f}")
+        print(f"Baseline Extra Trees accuracy on '{domain}' domain: {max_et_baseline_accuracy:.4f}")
+        print(f"Baseline AdaBoost accuracy on '{domain}' domain: {max_ada_baseline_accuracy:.4f}")
+        print(f"Baseline XGBoost accuracy on '{domain}' domain: {max_xgb_baseline_accuracy:.4f}")
         print(f"Improvement: {max_meta_forests_accuracy - max_rf_baseline_accuracy:.4f}")
         print(f"Time taken: {time.time() - start_time:.2f} seconds")
-            
+              
 
     for domain in pacs_domains:
         start_time = time.time()
         print("================================================")
         print(f"Running {n_experiments} PACS leave-one-domain experiments on {domain}...")
         print("================================================")
-        max_meta_forests_accuracy, max_rf_baseline_accuracy, max_svm_baseline_accuracy = 0.0, 0.0, 0.0
+        max_meta_forests_accuracy, max_svm_baseline_accuracy, max_rf_baseline_accuracy, max_et_baseline_accuracy, max_ada_baseline_accuracy, max_xgb_baseline_accuracy = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
         for i in range(n_experiments):
-            meta_forests_accuracy, rf_baseline_accuracy, svm_baseline_accuracy = meta_forests_on_pacs(
+            meta_forests_accuracy, svm_baseline_accuracy, rf_baseline_accuracy, et_baseline_accuracy, ada_baseline_accuracy, xgb_baseline_accuracy = meta_forests_on_pacs(
                 pacs_domains=pacs_domains,
                 pacs_target_domain=domain,
                 training_extracted_features=pacs_training_extracted_features,
@@ -408,25 +470,37 @@ if __name__ == "__main__":
                 verbose=False
             )
             max_meta_forests_accuracy = max(max_meta_forests_accuracy, meta_forests_accuracy)
-            max_rf_baseline_accuracy = max(max_rf_baseline_accuracy, rf_baseline_accuracy)
             max_svm_baseline_accuracy = max(max_svm_baseline_accuracy, svm_baseline_accuracy)
-            print(f"Experiment {i+1}/20 | Test: {domain} | "
-                      f"Meta-Forests Accuracy: {meta_forests_accuracy:.4f}, "
-                      f"Random Forest Accuracy: {rf_baseline_accuracy:.4f}, "
-                      f"SVM Accuracy: {svm_baseline_accuracy:.4f}")
+            max_rf_baseline_accuracy = max(max_rf_baseline_accuracy, rf_baseline_accuracy)
+            max_et_baseline_accuracy = max(max_et_baseline_accuracy, et_baseline_accuracy)
+            max_ada_baseline_accuracy = max(max_ada_baseline_accuracy, ada_baseline_accuracy)
+            max_xgb_baseline_accuracy = max(max_xgb_baseline_accuracy, xgb_baseline_accuracy)
+            print(f"Experiment {i+1:02d}/20 | Test: {domain} | "
+                      f"Meta-Forests Acc: {meta_forests_accuracy:.4f}, "
+                      f"SVM Acc: {svm_baseline_accuracy:.4f}, "
+                      f"Random Forest Acc: {rf_baseline_accuracy:.4f}, "
+                      f"Extra Trees Acc: {max_et_baseline_accuracy:.4f}, "
+                      f"AdaBoost Acc: {max_ada_baseline_accuracy:.4f}, "
+                      f"XGBoost Acc: {max_xgb_baseline_accuracy:.4f}")
 
         results.append({
             'dataset': 'PACS',
             'domain': domain,
             'meta_forests_accuracy': round(max_meta_forests_accuracy, 4),
-            'rf_baseline_accuracy': round(max_rf_baseline_accuracy, 4),
             'svm_baseline_accuracy': round(max_svm_baseline_accuracy, 4),
+            'rf_baseline_accuracy': round(max_rf_baseline_accuracy, 4),
+            'et_baseline_accuracy': round(max_et_baseline_accuracy, 4),
+            'ada_baseline_accuracy': round(max_ada_baseline_accuracy, 4),
+            'xgb_baseline_accuracy': round(max_xgb_baseline_accuracy, 4),
             'improvement': round(max_meta_forests_accuracy - max_rf_baseline_accuracy, 4)
         })
         print("================================================")
         print(f"Meta-Forests accuracy on '{domain}' domain: {max_meta_forests_accuracy:.4f}")
-        print(f"Baseline Random Forest accuracy on '{domain}' domain: {max_rf_baseline_accuracy:.4f}")
         print(f"Baseline SVM accuracy on '{domain}' domain: {max_svm_baseline_accuracy:.4f}")
+        print(f"Baseline Random Forest accuracy on '{domain}' domain: {max_rf_baseline_accuracy:.4f}")
+        print(f"Baseline Extra Trees accuracy on '{domain}' domain: {max_et_baseline_accuracy:.4f}")
+        print(f"Baseline AdaBoost accuracy on '{domain}' domain: {max_ada_baseline_accuracy:.4f}")
+        print(f"Baseline XGBoost accuracy on '{domain}' domain: {max_xgb_baseline_accuracy:.4f}")
         print(f"Improvement: {max_meta_forests_accuracy - max_rf_baseline_accuracy:.4f}")
         print(f"Time taken: {time.time() - start_time:.2f} seconds")
         print("================================================")

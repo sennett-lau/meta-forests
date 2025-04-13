@@ -2,9 +2,12 @@ import numpy as np
 import random
 from sklearn.metrics.pairwise import pairwise_kernels
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier, AdaBoostClassifier, HistGradientBoostingClassifier
 from sklearn.utils import resample
+
+#import torch.nn as nn
+#import torch.nn.functional as F
 
 
 def baseline_random_forest_fit(X_train, y_train, n_estimators=100, max_depth=5, random_state=None):
@@ -37,12 +40,15 @@ def baseline_svm_fit(X_train, y_train, C=1.0, kernel='rbf', degree=3, gamma='sca
     Parameters:
     - X_train (np.ndarray): Training features clearly.
     - y_train (np.ndarray): Training labels clearly.
-    - n_estimators (int): Number of trees clearly.
-    - max_depth (int): Max depth of trees clearly.
-    - random_state (int): Random state for reproducibility clearly.
+    - C (float): Regularization parameter clearly.
+    - kernel (str): Kernel type for the algorithm clearly.
+    - degree (int): Degree of polynomial kernel (for 'poly' kernel only).
+    - gamma (str or float): Kernel coefficient (for 'rbf', 'poly' and 'sigmoid' kernels).
+    - coef0 (float): Independent term in kernel function (for 'rbf', 'poly', 'sigmoid' kernels).
+    - break_ties (bool): Whether to break ties according to the confidence values of 'ovr' decision_function.
 
     Returns:
-    - Trained RandomForestClassifier model clearly.
+    - Trained SVM model clearly.
     """
     svc = SVC(
         C=C,
@@ -56,6 +62,130 @@ def baseline_svm_fit(X_train, y_train, C=1.0, kernel='rbf', degree=3, gamma='sca
 
     svc.fit(X_train, y_train)
     return svc
+
+def baseline_extra_trees_fit(X_train, y_train, n_estimators=100, max_depth=5, random_state=None):
+    """
+    Trains an Extra Trees model on VLCS or PACS dataset features clearly.
+
+    Parameters:
+    - X_train (np.ndarray): Training features clearly.
+    - y_train (np.ndarray): Training labels clearly.
+    - n_estimators (int): Number of trees clearly.
+    - max_depth (int): Max depth of trees clearly.
+    - random_state (int): Random state for reproducibility clearly.
+
+    Returns:
+    - Trained ExtraTreesClassifier model clearly.
+    """
+    et = ExtraTreesClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        random_state=random_state
+    )
+
+    et.fit(X_train, y_train)
+    return et
+
+def baseline_ada_boost_fit(X_train, y_train, n_estimators=100, lr=0.1, random_state=None):
+    """
+    Trains an AdaBoostClassifier model on VLCS or PACS dataset features clearly.
+
+    Parameters:
+    - X_train (np.ndarray): Training features clearly.
+    - y_train (np.ndarray): Training labels clearly.
+    - n_estimators (int): Number of trees clearly.
+    - lr (float): Learning rate clearly.
+    - random_state (int): Random state for reproducibility clearly.
+
+    Returns:
+    - Trained AdaBoostClassifier model clearly.
+    """
+    ada = AdaBoostClassifier(
+        n_estimators=n_estimators,
+        learning_rate=lr,
+        random_state=random_state
+    )
+
+    ada.fit(X_train, y_train)
+    return ada
+
+def baseline_xg_boost_fit(X_train, y_train, lr=0.1, max_depth=5, l2_reg=0.0, random_state=None):
+    """
+    Trains an HistGradientBoostingClassifier model on VLCS or PACS dataset features clearly.
+
+    Parameters:
+    - X_train (np.ndarray): Training features clearly.
+    - y_train (np.ndarray): Training labels clearly.
+    - lr (float): Learning rate clearly.
+    - max_depth (int): Max depth of trees clearly.
+    - l2_reg (float): L2 regularization parameter clearly.
+    - random_state (int): Random state for reproducibility clearly.
+
+    Returns:
+    - Trained HistGradientBoostingClassifier model clearly.
+    """
+    xgb = HistGradientBoostingClassifier(
+        learning_rate=lr,
+        max_depth=max_depth,
+        l2_regularization=l2_reg,
+        random_state=random_state
+    )
+
+    xgb.fit(X_train, y_train)
+    return xgb
+
+"""
+class MLDG:
+    def __init__(
+        self,
+        domains: list,
+        target_domain: str,
+        extracted_features: dict,
+        epochs: int = 10,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        epsilon: float = 1e-10,
+        random_state: int = 42,
+
+    ):
+        self.domains = domains
+        self.target_domain = target_domain
+        self.source_domains = [d for d in self.domains if d != self.target_domain]
+        self.extracted_features = extracted_features
+        self.epochs = epochs
+        self.alpha = alpha
+        self.beta = beta
+        self.epsilon = epsilon
+        self.random_state = random_state
+        self.weights = []
+        self.num_classes = len(np.unique(self.extracted_features[target_domain][1]))
+        self.num_features = self.extracted_features[target_domain][0].shape[1]
+
+        self.fc1 = nn.Linear(512, 512)
+        self.fc2 = nn.Linear(512, self.num_classes)
+        self.relu = nn.ReLU()
+        self.loss_fn = nn.CrossEntropyLoss()
+    
+    def forward(self, X):
+        return self.softmax(self.fc2(self.relu(self.fc1(X))))
+    
+    def train(self):
+        random.seed(self.random_state)
+        np.random.seed(self.random_state)
+
+        for i in range(self.epochs):
+        # Randomly select 1 domain as D_meta_test; the other domains become D_meta_train
+            meta_test_domain = random.choice(self.source_domains)
+            meta_train_domains = [d for d in self.source_domains if d != meta_test_domain]
+            # For each domain j in meta_train (M-2 domains)
+            for j, domain in enumerate(meta_train_domains):
+                X_train, y_train = self.extracted_features[domain]
+                loss = self.loss_fn(self.forward(X_train), y_train)
+                loss.backward()
+
+                X_test, y_test = self.extracted_features[meta_test_domain]
+
+"""
 
 class RandomForest:
     def __init__(
